@@ -30,7 +30,7 @@ swagger = Swagger(app)
 
 CORS(app, resources={r"/*": {
     "origins": [
-        "https://apihotel-82ne.onrender.com",
+        "https://specialwash-82ne.onrender.com",
         "https://scaling-system-9vx6v756jqr3r6q-3000.app.github.dev"
     ]
 }}, supports_credentials=True)

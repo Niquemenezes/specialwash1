@@ -30,7 +30,7 @@ export const Navbar = () => {
   return (
     <nav className="navbar navbar-expand-lg shadow-sm" style={{ backgroundColor: "#0dcaf0" }}>
       <div className="container-fluid">
-        <span className="navbar-brand fw-bold text-white">APIHotel</span>
+        <span className="navbar-brand fw-bold text-white">specialwash</span>
 
         <button
           className="navbar-toggler"

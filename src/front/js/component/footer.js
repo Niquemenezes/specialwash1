@@ -6,7 +6,7 @@ export const Footer = () => (
   <div className="container d-flex flex-column flex-md-row justify-content-between align-items-center">
     <p className="mb-2 mb-md-0">© 2025 Gestión Hotelera</p>
     <p className="mb-0">
-      Contacto: <a href="mailto:soporte@apihotel.com" className="text-white fw-bold">soporte@apihotel.com</a>
+      Contacto: <a href="mailto:soporte@specialwash.com" className="text-white fw-bold">soporte@specialwash.com</a>
     </p>
   </div>
 </footer>

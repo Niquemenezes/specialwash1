@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import CloudinaryApiHotel from "../component/cloudinaryApiHotel";
+import Cloudinaryspecialwash from "../component/cloudinaryspecialwash";
 import Chatbot from "../component/chatBot";
 import "../../styles/privateMaintenance.css";
 
@@ -281,7 +281,7 @@ const PrivateMaintenance = () => {
 
                     <div className="mb-3">
                       <label className="form-label">Foto</label>
-                      <CloudinaryApiHotel
+                      <Cloudinaryspecialwash
                         setPhotoUrl={(url) => handlePhotoUpload(task.id, url)}
                         setErrorMessage={(msg) => handlePhotoError(task.id, msg)}
                       />
