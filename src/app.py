@@ -63,8 +63,8 @@ app.register_blueprint(api, url_prefix='/api')
 # Registrar la ruta del chatbot
 # src/app.py
 
-from api.chatbot import chatbot_api
-app.register_blueprint(chatbot_api, url_prefix="/chatbot")
+# from api.chatbot import chatbot_api  # desactivado temporalmente
+# app.register_blueprint(chatbot_api, url_prefix="/chatbot")
 
 
 # Manejo de errores
