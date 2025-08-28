@@ -1,108 +1,53 @@
 import React from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Switch, Route } from "react-router-dom";
 import ScrollToTop from "./component/scrollToTop";
-import { BackendURL } from "./component/backendURL";
-import ThemeForm from './pages/theme';
-import HotelTheme from './pages/hotelTheme';
-import HouseKeeper from './pages/houseKeeper';
-import { Home } from "./pages/home";
-import { Demo } from "./pages/demo";
-import { Single } from "./pages/single";
-import { ListaCat } from "./pages/listaCat";
-import injectContext from "./store/appContext";
 import { Navbar } from "./component/navbar";
-import EditarCategoria from "./component/editarCategoria";
-import CrearCategoria from "./component/crearCategoria";
-import ListaCategoria from "./component/listaCategoria";
-import Hoteles from "./component/listaHoteles";
-import Branches from "./component/listaBranches";
-import ListaRoom from "./component/listaRoom";
-import Maintenance from "./component/listaMaintenance";
-import LoginHouseKeeper from "./pages/loginHouseKeeper";
-import PrivateHouseKeeper from './pages/privateHouseKeeper';
-import ProtectedPrivateHouseKeeper from './pages/ProtectedPrivateHouseKeeper';
-import HouseKeeperTask from './pages/HouseKeeperTask';
-import LoginHotel from "./pages/loginHotel";
-import SignupHotel from "./pages/signupHotel";
-import PrivateHotel from "./pages/privateHotel";
-import AuthLayout from "./component/authLayout";
-import MaintenanceTask from './pages/maintenanceTask';
-import LoginMaintenance from "./pages/loginMaintenance";
-import PrivateMaintenance from './pages/privateMaintenance';
-import ProtectedPrivateMaintenance from './pages/ProtectedPrivateMaintenance';
 import { Footer } from "./component/footer";
-import TaskFilterView from './pages/TaskFilterView';
-import TaskFilterView2 from './pages/TaskFilterView2';
-import MaintenanceWorkLog from "./pages/maintenanceWorkLog";
-import HousekeeperWorkLog from "./pages/houseKeeperWorkLog";
+import injectContext from "./store/appContext";
 
+// páginas existentes
+import { Home } from "./pages/home";
 
+// páginas nuevas
+import Login from "./pages/login";
+import Signup from "./pages/signup";
+import Admin from "./pages/admin";
+import Productos from "./pages/productos";
+import Usuarios from "./pages/usuarios";
+import Proveedores from "./pages/proveedores";
+import Entradas from "./pages/entradas";
+import Salidas from "./pages/salidas";
+import Maquinaria from "./pages/maquinaria";
 
-
+import PrivateRoute from "./component/PrivateRoute";
 
 const Layout = () => {
   const basename = process.env.BASENAME || "";
 
   return (
-    <BrowserRouter basename={basename}>
-      <ScrollToTop>
-        <RouterContent />
-      </ScrollToTop>
-    </BrowserRouter>
-  );
-};
+    <div>
+      <BrowserRouter basename={basename}>
+        <ScrollToTop>
+          <Navbar />
+          <Switch>
+            <Route exact path="/" component={Home} />
+            <Route exact path="/login" component={Login} />
+            <Route exact path="/signup" component={Signup} />
 
-const RouterContent = () => {
-  const location = useLocation();
-  const showNavbarAndFooter = !["/", "/demo"].includes(location.pathname);
+            <PrivateRoute exact path="/admin" adminOnly component={Admin} />
+            <PrivateRoute exact path="/productos" adminOnly component={Productos} />
+            <PrivateRoute exact path="/usuarios" adminOnly component={Usuarios} />
+            <PrivateRoute exact path="/proveedores" adminOnly component={Proveedores} />
+            <PrivateRoute exact path="/entradas" adminOnly component={Entradas} />
+            <PrivateRoute exact path="/salidas" adminOnly component={Salidas} />
+            <PrivateRoute exact path="/maquinaria" adminOnly component={Maquinaria} />
 
-  if (!process.env.BACKEND_URL || process.env.BACKEND_URL === "") {
-    return <BackendURL />;
-  }
-
-  return (
-    <div className="d-flex flex-column min-vh-100">
-      {showNavbarAndFooter && <Navbar />}
-
-      <main className="flex-grow-1">
-        <Routes>
-          <Route element={<Home />} path="/" />
-          <Route element={<Demo />} path="/demo" />
-          <Route element={<ListaCat />} path="/listaCat" />
-          <Route element={<EditarCategoria />} path="/editar/:id" />
-          <Route element={<CrearCategoria />} path="/crearCategoria" />
-          <Route element={<ListaCategoria />} path="/listaCategoria" />
-          <Route element={<Single />} path="/single/:theid" />
-          <Route element={<Hoteles />} path="/hoteles" />
-          <Route element={<Hoteles />} path="/listaHoteles" />
-          <Route element={<ThemeForm />} path="/theme" />
-          <Route element={<HotelTheme />} path="/hotelTheme" />
-          <Route element={<Branches />} path="/listaBranches" />
-          <Route element={<ListaRoom />} path="/listaRoom" />
-          <Route element={<Maintenance />} path="/listaMaintenance" />
-          <Route element={<HouseKeeper />} path="/houseKeeper" />
-          <Route element={<LoginHouseKeeper />} path="/loginHouseKeeper" />
-          <Route element={<ProtectedPrivateHouseKeeper><PrivateHouseKeeper /></ProtectedPrivateHouseKeeper>} path="/privateHouseKeeper" />
-          <Route element={<HouseKeeperTask />} path="/HouseKeeperTask" />
-          <Route element={<PrivateHotel />} path="/privateHotel" />
-          <Route element={<LoginHotel />} path="/loginHotel" />
-          <Route element={<SignupHotel />} path="/signupHotel" />
-          <Route element={<AuthLayout />} path="/authLayout" />
-          <Route element={<MaintenanceTask />} path="/maintenanceTask" />
-          <Route element={<LoginMaintenance />} path="/loginMaintenance" />
-          <Route element={<ProtectedPrivateMaintenance><PrivateMaintenance /></ProtectedPrivateMaintenance>} path="/privateMaintenance" />
-          <Route element={<TaskFilterView />} path="/task-filter" />
-          <Route element={<TaskFilterView2 />} path="/task-filter-housekeeper" />
-          <Route element={<HousekeeperWorkLog />} path="/housekeeperWorkLog"  />
-          <Route element={<MaintenanceWorkLog />} path="/maintenanceWorkLog"  />
-
-          <Route element={<h1>Not found!</h1>} path="*" />
-        </Routes>
-      </main>
-
-      {showNavbarAndFooter && <Footer />}
+            <Route render={() => <h1>Not found!</h1>} />
+          </Switch>
+          <Footer />
+        </ScrollToTop>
+      </BrowserRouter>
     </div>
   );
 };
-
 export default injectContext(Layout);

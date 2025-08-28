@@ -30,7 +30,7 @@ export const Home = () => {
                     <div className="row align-items-center">
                         <div className="col-lg-8 mx-auto text-center">
                             <h1 className="display-4 fw-bold mb-4">
-                                Transforma la gestión de tu hotel con <span className="text-info">nuestra API</span>
+                                Transforma la gestión de tu negocio con <span className="text-info">nuestra API</span>
                             </h1>
                             <p className="lead mb-4">
                                 Automatiza incidencias, coordina equipos y optimiza recursos con una plataforma diseñada para la <strong>hotelería moderna</strong>.

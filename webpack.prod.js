@@ -7,9 +7,6 @@ module.exports = merge(common, {
         publicPath: '/'
     },
     plugins: [
-        new Dotenv({
-            safe: false,
-            systemvars: true
-        })
+        new Dotenv({ path: '.env', systemvars: true, allowEmptyValues: true, safe: false, silent: true })
     ]
 });
