@@ -1,6 +1,6 @@
 import os
 from flask_admin import Admin
-from .models import db, User, Hoteles, Theme, Category, HotelTheme, Branches, Maintenance, HouseKeeper, HouseKeeperTask, Room, MaintenanceTask
+from .models import db, Usuario, Proveedor, RegistroSalidaProducto, RegistroEntradaProducto, Producto, Maquinaria
 from flask_admin.contrib.sqla import ModelView
 
 def setup_admin(app):
@@ -10,16 +10,12 @@ def setup_admin(app):
     admin = Admin(app, name='4Geeks Admin', template_mode='bootstrap3')
     
     
-    admin.add_view(ModelView(User, db.session))
-    admin.add_view(ModelView(Hoteles, db.session))
-    admin.add_view(ModelView(Theme, db.session))
-    admin.add_view(ModelView(HotelTheme, db.session))
-    admin.add_view(ModelView(Category, db.session))
-    admin.add_view(ModelView(Branches, db.session))
-    admin.add_view(ModelView(Maintenance, db.session))
-    admin.add_view(ModelView(HouseKeeper, db.session))
-    admin.add_view(ModelView(HouseKeeperTask, db.session))
-    admin.add_view(ModelView(MaintenanceTask, db.session))
-    admin.add_view(ModelView(Room, db.session))
+    admin.add_view(ModelView(Usuario, db.session))
+    admin.add_view(ModelView(Proveedor, db.session))
+    admin.add_view(ModelView(RegistroSalidaProducto, db.session))
+    admin.add_view(ModelView(RegistroEntradaProducto, db.session))
+    admin.add_view(ModelView(Producto, db.session))
+    admin.add_view(ModelView(Maquinaria, db.session))
+    
     # Aquí puedes agregar más modelos a la interfaz de administración si lo necesitas
     # admin.add_view(ModelView(YourModelName, db.session, name='YourModelName')) 

@@ -1,11 +1,12 @@
 import os
+from api.db import db
 from flask import Flask, jsonify, send_from_directory
 from flask_migrate import Migrate
 from api.utils import APIException, generate_sitemap
 from api.models import db
 from api.routes import api
 from api.admin import setup_admin
-from api.commands import setup_commands
+# from api.commands import setup_commands  # desactivado temporalmente
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
@@ -23,6 +24,14 @@ db_url = os.getenv("DATABASE_URL")
 
 # Inicializar app Flask
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///dev.db')
+app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
+db.init_app(app)
+migrate = Migrate(app, db)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///dev.db')
+app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
+db.init_app(app)
+migrate = Migrate(app, db)
 app.url_map.strict_slashes = False
 swagger = Swagger(app)
 
@@ -30,7 +39,7 @@ swagger = Swagger(app)
 
 CORS(app, resources={r"/*": {
     "origins": [
-        "https://apihotel-82ne.onrender.com",
+        "https://specialwash-82ne.onrender.com",
         "https://scaling-system-9vx6v756jqr3r6q-3000.app.github.dev"
     ]
 }}, supports_credentials=True)
@@ -55,7 +64,7 @@ db.init_app(app)
 
 # Admin y comandos
 setup_admin(app)
-setup_commands(app)
+# setup_commands(app)  # desactivado temporalmente
 
 # Rutas API principales
 app.register_blueprint(api, url_prefix='/api')
@@ -63,8 +72,8 @@ app.register_blueprint(api, url_prefix='/api')
 # Registrar la ruta del chatbot
 # src/app.py
 
-from api.chatbot import chatbot_api
-app.register_blueprint(chatbot_api, url_prefix="/chatbot")
+# from api.chatbot import chatbot_api  # desactivado temporalmente
+# app.register_blueprint(chatbot_api, url_prefix="/chatbot")
 
 
 # Manejo de errores

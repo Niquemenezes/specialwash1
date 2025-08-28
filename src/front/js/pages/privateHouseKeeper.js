@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import CloudinaryApiHotel from '../component/cloudinaryApiHotel';
+import Cloudinaryspecialwash from '../component/cloudinaryspecialwash';
 import "../../styles/privatehousekeepers.css";
 import { faBuilding } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -433,7 +433,7 @@ const PrivateHouseKeeper = () => {
 
                   <div className="my-3">
                     <label><strong>Foto</strong></label>
-                    <CloudinaryApiHotel setPhotoUrl={url => handlePhotoUpload(task.id, url)} setErrorMessage={msg => handlePhotoError(task.id, msg)} />
+                    <Cloudinaryspecialwash setPhotoUrl={url => handlePhotoUpload(task.id, url)} setErrorMessage={msg => handlePhotoError(task.id, msg)} />
                     {(taskPhotos[task.id] || task.photo_url) && (
                       <img src={taskPhotos[task.id] || task.photo_url} className="img-thumbnail mt-2" style={{ maxWidth: '200px' }} alt="Preview" />
                     )}
@@ -469,7 +469,7 @@ const PrivateHouseKeeper = () => {
                   <div className="card-body">
                     <h5>Crear nueva incidencia</h5>
                     <input type="text" className="form-control mb-2" placeholder="Nombre de la tarea" value={nombre} onChange={e => setNombre(e.target.value)} />
-                    <CloudinaryApiHotel setPhotoUrl={setMaintenancePhoto} setErrorMessage={() => { }} />
+                    <Cloudinaryspecialwash setPhotoUrl={setMaintenancePhoto} setErrorMessage={() => { }} />
                     {maintenancePhoto && <img src={maintenancePhoto} className="img-thumbnail mt-2" style={{ width: 80, height: 80 }} alt="Foto incidencia" />}
                     <button className="btn btn-info mt-3" onClick={createMaintenanceTask}>Crear Tarea</button>
 

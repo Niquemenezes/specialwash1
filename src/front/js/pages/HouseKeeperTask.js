@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
 import PrivateLayout from "../component/privateLayout";
-import CloudinaryApiHotel from "../component/cloudinaryApiHotel";
+import Cloudinaryspecialwash from "../component/cloudinaryspecialwash";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSave, faTimes, faPen, faTrash, faBed } from "@fortawesome/free-solid-svg-icons";
 import { faPlaneDeparture, faUser, faCircleInfo, faClock, faSpinner, faCheckCircle } from "@fortawesome/free-solid-svg-icons";
@@ -253,7 +253,7 @@ const HouseKeeperTask = () => {
 
               <div className="form-group mb-2">
                 <label>Foto</label>
-                <CloudinaryApiHotel setPhotoUrl={setPhoto} setErrorMessage={setErrorMessage} />
+                <Cloudinaryspecialwash setPhotoUrl={setPhoto} setErrorMessage={setErrorMessage} />
                 {photo && <img src={photo} alt="Preview" style={{ width: 60, marginTop: 10 }} />}
               </div>
               <div className="form-group mb-2">

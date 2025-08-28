@@ -296,7 +296,7 @@ export const Home = () => {
                             </p>
                             <p className="text-muted mt-4">
                                 <span className="fw-bold">Email:</span><br />
-                                <span className="d-block mt-1">equipo@apihotel.com</span>
+                                <span className="d-block mt-1">equipo@specialwash.com</span>
                             </p>
                             <p className="text-muted mt-4">
                                 <span className="fw-bold">Oficina:</span><br />
@@ -355,7 +355,7 @@ export const Home = () => {
                 <div className="container">
                     <div className="row">
                         <div className="col-lg-6">
-                            <img src={logo} alt="ApiHotel Logo" style={{ height: "120px", objectFit: "contain" }} />
+                            <img src={logo} alt="specialwash Logo" style={{ height: "120px", objectFit: "contain" }} />
                             <p className="text-light text-opacity-50 mt-4">
                                 Nuestra solución hotelera transforma la gestión de tu negocio
                                 <br /> con tecnología innovadora y fácil de usar.
@@ -409,7 +409,7 @@ export const Home = () => {
                         <div className="col-lg-12">
                             <div className="mt-5">
                                 <p className="text-light text-opacity-50 mt-4 text-center mb-0">
-                                    © {new Date().getFullYear()} ApiHotel Solution. Todos los derechos reservados
+                                    © {new Date().getFullYear()} specialwash Solution. Todos los derechos reservados
                                 </p>
                             </div>
                         </div>

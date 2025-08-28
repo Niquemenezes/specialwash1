@@ -1,270 +1,170 @@
-from flask_sqlalchemy import SQLAlchemy
-import datetime
+from .db import db
+from datetime import datetime
+from sqlalchemy import Numeric
 
+def serialize_list(items):
+    return [item.serialize() for item in items]
 
-db = SQLAlchemy()
+from werkzeug.security import generate_password_hash, check_password_hash
 
-
-class User(db.Model):
+class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120))
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
-    is_active = db.Column(db.Boolean(), default=True, nullable=False)
-    theme = db.Column(db.String(120), unique=True, nullable=False)
+    rol = db.Column(db.String(50), default="empleado")
 
-    def __repr__(self):
-        return f'<User {self.id}>'
+    # Guarda SOLO hashes (nunca el texto claro)
+    password_hash = db.Column(db.String(255), nullable=True)
+
+    def set_password(self, password: str):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, password)
 
     def serialize(self):
         return {
             "id": self.id,
+            "nombre": self.nombre,
             "email": self.email,
+            "rol": self.rol,
+            # nunca expongas password_hash
         }
 
-class Hoteles(db.Model):
+    def __str__(self):
+        return (getattr(self, 'nombre', None)
+            or getattr(self, 'email', None)
+            or getattr(self, 'detalle', None)
+            or f"Usuario {self.id}")
+
+class Proveedor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), unique=True, nullable=False)
-    email = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
-
-    def __repr__(self):
-        return f'<Hoteles {self.nombre}>'
+    contacto = db.Column(db.String(120))
+    telefono = db.Column(db.String(50))
 
     def serialize(self):
         return {
             "id": self.id,
             "nombre": self.nombre,
-            "email": self.email,
-            "password": self.password
+            "contacto": self.contacto,
+            "telefono": self.telefono,
         }
 
-class Theme(db.Model):
+    def __str__(self):
+        return (getattr(self, 'nombre', None)
+            or getattr(self, 'email', None)
+            or getattr(self, 'detalle', None)
+            or f"Proveedor {self.id}")
+
+class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), unique=True, nullable=False)
-
-    def __repr__(self):
-        return f'<Theme {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "nombre": self.nombre,
-        }
-
-class HotelTheme(db.Model):
-    __tablename__ = 'hoteltheme'
-    id = db.Column(db.Integer, primary_key=True)
-    id_hoteles = db.Column(db.Integer, db.ForeignKey('hoteles.id'), nullable=True)
-    id_theme = db.Column(db.Integer, db.ForeignKey('theme.id'), nullable=True)
-
-    hoteles = db.relationship('Hoteles', backref='hoteltheme')
-    theme = db.relationship('Theme', backref='hoteltheme')
-
-    def __repr__(self):
-        return f'<HotelTheme {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "id_hoteles": self.id_hoteles,
-            "id_theme": self.id_theme
-        }
-
-
-class Category(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), nullable=False)
-
-    def __repr__(self):
-        return f'<Category {self.nombre}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "nombre": self.nombre
-        }
-
-
-class Branches(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), nullable=False)
-    direccion = db.Column(db.String(120), nullable=False)
-    longitud = db.Column(db.Float, nullable=True)
-    latitud = db.Column(db.Float, nullable=True)
-    hotel_id = db.Column(db.Integer, db.ForeignKey('hoteles.id'), nullable=False)
-
-    hotel = db.relationship("Hoteles")
-
-    def __repr__(self):
-        return f'<Branches {self.nombre}>'
+    categoria = db.Column(db.String(120))
+    stock_minimo = db.Column(db.Integer, default=0)
+    stock_actual = db.Column(db.Integer, default=0)
 
     def serialize(self):
         return {
             "id": self.id,
             "nombre": self.nombre,
-            "direccion": self.direccion,
-            "longitud": self.longitud,
-            "latitud": self.latitud,
-            "hotel_id": self.hotel_id
+            "categoria": self.categoria,
+            "stock_minimo": self.stock_minimo,
+            "stock_actual": self.stock_actual,
+        }
+
+    def __str__(self):
+        return (getattr(self, 'nombre', None)
+            or getattr(self, 'email', None)
+            or getattr(self, 'detalle', None)
+            or f"Producto {self.id}")
+
+class RegistroEntradaProducto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey("producto.id"), nullable=False)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"))
+    cantidad = db.Column(db.Integer, nullable=False)
+    fecha_entrada = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Documento e importes
+    tipo_documento = db.Column(db.String(20))             # 'factura' | 'albaran'
+    numero_documento = db.Column(db.String(120))          # alfanumérico (p.ej. 'ALB-22A')
+    precio_bruto_sin_iva = db.Column(db.Numeric(12, 2))   # base antes de descuento
+    descuento_porcentaje = db.Column(db.Numeric(5, 2))    # % descuento sobre bruto
+    precio_sin_iva = db.Column(db.Numeric(12, 2))         # neto tras descuento
+    iva_porcentaje = db.Column(db.Numeric(5, 2))          # % IVA
+    precio_con_iva = db.Column(db.Numeric(12, 2))         # neto + IVA
+
+    producto = db.relationship("Producto", lazy="joined")
+    proveedor = db.relationship("Proveedor", lazy="joined")
+
+    def serialize(self):
+        f = lambda x: float(x) if x is not None else None
+        return {
+            "id": self.id,
+            "producto_id": self.producto_id,
+            "producto_nombre": self.producto.nombre if self.producto else None,
+            "proveedor_id": self.proveedor_id,
+            "proveedor_nombre": self.proveedor.nombre if self.proveedor else None,
+            "cantidad": self.cantidad,
+            "fecha_entrada": self.fecha_entrada.isoformat() if self.fecha_entrada else None,
+            "tipo_documento": self.tipo_documento,
+            "numero_documento": self.numero_documento,
+            "precio_bruto_sin_iva": f(self.precio_bruto_sin_iva),
+            "descuento_porcentaje": f(self.descuento_porcentaje),
+            "precio_sin_iva": f(self.precio_sin_iva),
+            "iva_porcentaje": f(self.iva_porcentaje),
+            "precio_con_iva": f(self.precio_con_iva),
         }
 
 
-class Room(db.Model):
+class RegistroSalidaProducto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), nullable=False)
-    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey("producto.id"), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)
+    fecha_salida = db.Column(db.DateTime, default=datetime.utcnow)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuario.id"))
 
-    branch = db.relationship("Branches")
-    maintenance_tasks = db.relationship("MaintenanceTask", back_populates="room", cascade="all, delete-orphan")
-    housekeeper_tasks = db.relationship("HouseKeeperTask", back_populates="room", cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f'<Room {self.nombre}>'
+    producto = db.relationship("Producto", lazy="joined")
+    usuario = db.relationship("Usuario", lazy="joined")
 
     def serialize(self):
         return {
-            'id': self.id,
-            'nombre': self.nombre,
-            'branch_id': self.branch_id,
-            'branch': self.branch.nombre if self.branch else None
+            "id": self.id,
+            "producto_id": self.producto_id,
+            "producto_nombre": self.producto.nombre if self.producto else None,
+            "cantidad": self.cantidad,
+            "fecha_salida": self.fecha_salida.isoformat(),
+            "usuario_id": self.usuario_id,
+            "usuario_nombre": self.usuario.nombre if self.usuario else None,
         }
 
-
-class Maintenance(db.Model):
+# NUEVO: Maquinaria
+class Maquinaria(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
-    photo_url = db.Column(db.String(300), nullable=True)
-    hotel_id = db.Column(db.Integer, db.ForeignKey('hoteles.id'), nullable=False)
-    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
+    marca = db.Column(db.String(120))
+    modelo = db.Column(db.String(120))
+    numero_serie = db.Column(db.String(120), unique=True)
+    estado = db.Column(db.String(50), default="operativa")  # operativa | mantenimiento | fuera_servicio
+    fecha_compra = db.Column(db.Date)
+    ultima_revision = db.Column(db.Date)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"))
 
-    hotel = db.relationship('Hoteles')
-    branch = db.relationship('Branches')
-
-    def __repr__(self):
-        return f'<Maintenance {self.nombre}>'
+    proveedor = db.relationship("Proveedor", lazy="joined")
 
     def serialize(self):
         return {
             "id": self.id,
             "nombre": self.nombre,
-            "email": self.email,
-            "password": self.password,
-            "photo_url": self.photo_url,
-            "hotel_id": self.hotel_id,
-            "hotel": self.hotel.nombre if self.hotel else None,
-            "branch_id": self.branch_id,
-            "branch_nombre": self.branch.nombre if self.branch else None
+            "marca": self.marca,
+            "modelo": self.modelo,
+            "numero_serie": self.numero_serie,
+            "estado": self.estado,
+            "fecha_compra": self.fecha_compra.isoformat() if self.fecha_compra else None,
+            "ultima_revision": self.ultima_revision.isoformat() if self.ultima_revision else None,
+            "proveedor_id": self.proveedor_id,
+            "proveedor_nombre": self.proveedor.nombre if self.proveedor else None,
         }
-
-
-class HouseKeeper(db.Model):
-    __tablename__ = 'housekeeper'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
-    photo_url = db.Column(db.String(300), nullable=True)
-    id_branche = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=True)
-   
-
-    branches = db.relationship('Branches')
-
-    def __repr__(self):
-        return f'<HouseKeeper {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "nombre": self.nombre,
-            "email": self.email,
-            "password": self.password,
-            "photo_url": self.photo_url,
-            "id_branche": self.id_branche,
-            "branch_nombre": self.branches.nombre if self.branches else None,
-           
-        }
-
-class HouseKeeperTask(db.Model):
-    __tablename__ = 'housekeepertask'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), nullable=False)
-    photo_url = db.Column(db.String(500), nullable=True)
-    condition = db.Column(db.String(80), nullable=False, default='PENDIENTE')
-    assignment_date = db.Column(db.String(80), nullable=False)
-    submission_date = db.Column(db.String(80), nullable=False)
-    id_room = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=True)
-    id_housekeeper = db.Column(db.Integer, db.ForeignKey('housekeeper.id'), nullable=True)
-    nota_housekeeper = db.Column(db.String(500))  # nuevo campo para observaciones
-
-    room = db.relationship('Room', back_populates='housekeeper_tasks')
-    housekeeper = db.relationship('HouseKeeper', backref='housekeepertask')
-
-    def __repr__(self):
-        return f'<HouseKeeperTask {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "nombre": self.nombre,
-            "photo_url": self.photo_url if self.photo_url else None,
-            "condition": self.condition,
-            "assignment_date": self.assignment_date,
-            "submission_date": self.submission_date,
-            "id_room": self.id_room,
-            "room_nombre": self.room.nombre if self.room else None,
-            "room_branch_id": self.room.branch_id if self.room else None,
-            "room_branch_nombre": self.room.branch.nombre if self.room and self.room.branch else None,
-            "id_housekeeper": self.id_housekeeper,
-            "housekeeper_nombre": self.housekeeper.nombre if self.housekeeper else None,
-            "nota_housekeeper": self.nota_housekeeper,
-        }
-
-
-class MaintenanceTask(db.Model):
-    __tablename__ = 'maintenancetask'
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(120), nullable=False)
-    photo_url = db.Column(db.String(500), nullable=True)
-    condition = db.Column(db.String(120), nullable=True)
-    room_id = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=True)
-    maintenance_id = db.Column(db.Integer, db.ForeignKey('maintenance.id'), nullable=True)
-    housekeeper_id = db.Column(db.Integer, db.ForeignKey('housekeeper.id'), nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    finalizado_por = db.Column(db.String(120), nullable=True)
-
-
-
-    room = db.relationship('Room', back_populates='maintenance_tasks')
-    maintenance = db.relationship('Maintenance')
-    housekeeper = db.relationship('HouseKeeper')
-    category = db.relationship('Category')
-
-    def __repr__(self):
-        return f'<MaintenanceTask {self.nombre}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "nombre": self.nombre,
-            "photo_url": self.photo_url if self.photo_url else None,
-            "condition": self.condition,
-            "room": self.room.serialize() if self.room else None,
-            "room_id": self.room_id,
-            "room_nombre": self.room.nombre if self.room else None,
-            "maintenance": self.maintenance.serialize() if self.maintenance else None,
-            "maintenance_id": self.maintenance_id,
-            "maintenance_nombre": self.maintenance.nombre if self.maintenance else None,
-            "housekeeper": self.housekeeper.serialize() if self.housekeeper else None,
-            "housekeeper_id": self.housekeeper_id,
-            "housekeeper_nombre": self.housekeeper.nombre if self.housekeeper else None,  
-            "category": self.category.serialize() if self.category else None,
-            "category_id": self.category_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "finalizado_por": self.finalizado_por,
-
-
-        }
-

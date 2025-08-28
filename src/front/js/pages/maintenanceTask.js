@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
-import CloudinaryApiHotel from "../component/cloudinaryApiHotel";
+import Cloudinaryspecialwash from "../component/cloudinaryspecialwash";
 import PrivateLayout from "../component/privateLayout";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faTrash, faSave, faTimes, faClock, faSpinner, faCheckCircle } from "@fortawesome/free-solid-svg-icons";
@@ -193,7 +193,7 @@ const MaintenanceTask = () => {
 
                   <div className="form-group mb-3">
                     <label className="small">Seleccionar archivo</label>
-                    <CloudinaryApiHotel setPhotoUrl={setPhoto} setErrorMessage={setErrorMessage} />
+                    <Cloudinaryspecialwash setPhotoUrl={setPhoto} setErrorMessage={setErrorMessage} />
                     {photo && (
                       <div className="mt-2 text-center">
                         <img src={photo} alt="preview" style={{ width: "60px", height: "60px", objectFit: "cover", borderRadius: "8px" }} />

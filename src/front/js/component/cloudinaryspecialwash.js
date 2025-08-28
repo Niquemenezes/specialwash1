@@ -1,13 +1,13 @@
 import React from "react";
 
-const CloudinaryApiHotel = ({ setPhotoUrl, setErrorMessage }) => {
+const Cloudinaryspecialwash = ({ setPhotoUrl, setErrorMessage }) => {
   const handleFileChange = (event) => {
     const file = event.target.files[0];
 
     if (file) {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", "Apihotel");
+      formData.append("upload_preset", "specialwash");
 
       fetch("https://api.cloudinary.com/v1_1/dnftnyi5g/image/upload", {
         method: "POST",
@@ -39,4 +39,4 @@ const CloudinaryApiHotel = ({ setPhotoUrl, setErrorMessage }) => {
   );
 };
 
-export default CloudinaryApiHotel;
+export default Cloudinaryspecialwash;
