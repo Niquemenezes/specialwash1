@@ -1,16 +1,10 @@
 import React from "react";
-import { Redirect, Route } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { getToken, isAdmin } from "../utils/auth";
 
-const PrivateRoute = ({ component: Component, adminOnly=false, ...rest }) => (
-  <Route
-    {...rest}
-    render={props => {
-      const hasToken = !!getToken();
-      if (!hasToken) return <Redirect to="/login" />;
-      if (adminOnly && !isAdmin()) return <Redirect to="/" />;
-      return <Component {...props} />;
-    }}
-  />
-);
-export default PrivateRoute;
+export default function PrivateRoute({ adminOnly=false }) {
+  const hasToken = !!getToken();
+  if (!hasToken) return <Navigate to="/login" replace />;
+  if (adminOnly && !isAdmin()) return <Navigate to="/" replace />;
+  return <Outlet />;
+}

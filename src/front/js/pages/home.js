@@ -33,7 +33,7 @@ export const Home = () => {
                                 Transforma la gestión de tu negocio con <span className="text-info">nuestra API</span>
                             </h1>
                             <p className="lead mb-4">
-                                Automatiza incidencias, coordina equipos y optimiza recursos con una plataforma diseñada para la <strong>hotelería moderna</strong>.
+                                Controla su stock, coordina equipos y optimiza recursos con una plataforma diseñada para la <strong>hotelería moderna</strong>.
                             </p>
                             <div className="d-flex gap-3 justify-content-center">
                                 <button
