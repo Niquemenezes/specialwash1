@@ -1,0 +1,19 @@
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1100; /* Mayor que el z-index del sidebar (1000) */
+    width: 100%;
+  }
+  
+  /* Ajuste para el contenido principal cuando hay navbar fijo */
+  body {
+    padding-top: 60px; /* Altura aproximada del navbar */
+  }
+  
+  /* Ajuste para el sidebar cuando hay navbar fijo */
+  .sidebar {
+    top: 60px; /* Altura aproximada del navbar */
+    height: calc(100vh - 60px); /* Altura total menos la altura del navbar */
+  } 

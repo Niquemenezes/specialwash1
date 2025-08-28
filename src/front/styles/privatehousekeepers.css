@@ -1,0 +1,215 @@
+/* Variables globales */
+:root {
+  --primary-color: #183b52;
+  --secondary-color: #0dcaf0;
+  --success-color: #28a745;
+  --warning-color: #ffc107;
+  --danger-color: #dc3545;
+  --light-color: #f8f9fa;
+  --dark-color: #343a40;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --transition: all 0.3s ease;
+}
+
+/* Estilos generales */
+body {
+  background-color: #f5f7fa;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Contenedor principal */
+.main-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* Tarjeta principal */
+.main-card {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+/* Título principal */
+.main-title {
+  color: var(--primary-color);
+  font-size: 2rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 2rem;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.main-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 3px;
+  background: var(--secondary-color);
+  border-radius: 2px;
+}
+
+/* Botones de habitación */
+.custom-room-button {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: var(--transition);
+  box-shadow: var(--box-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.custom-room-button:hover {
+  background-color: rgb(48, 99, 165) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Tarjeta de tarea */
+.task-card {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  margin-bottom: 1.5rem;
+  transition: var(--transition);
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.task-card-body {
+  padding: 1.5rem;
+}
+
+/* Badges de estado */
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Botones de acción */
+.action-button {
+  padding: 0.5rem 1.5rem;
+  border-radius: 20px;
+  border: none;
+  font-weight: 500;
+  transition: var(--transition);
+  margin: 0.25rem;
+}
+
+.action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Sección de mantenimiento */
+.maintenance-section {
+  background: var(--light-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* Formulario de mantenimiento */
+.maintenance-form {
+  background: white;
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
+
+.form-control {
+  border-radius: var(--border-radius);
+  border: 1px solid #dee2e6;
+  padding: 0.75rem;
+  transition: var(--transition);
+}
+
+.form-control:focus {
+  border-color: var(--secondary-color);
+  box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
+}
+
+/* Lista de tareas de mantenimiento */
+.maintenance-list {
+  margin-top: 1.5rem;
+}
+
+.maintenance-item {
+  background: white;
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: var(--transition);
+}
+
+.maintenance-item:hover {
+  transform: translateX(5px);
+  box-shadow: var(--box-shadow);
+}
+
+/* Botón de cerrar sesión */
+.logout-button {
+  background-color: var(--secondary-color) !important;
+  color: white !important;
+  border: none;
+  border-radius: 20px;
+  padding: 0.75rem 2rem;
+  font-weight: 500;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.logout-button:hover {
+  background-color: #0ab4d9 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main-container {
+    margin: 1rem auto;
+  }
+  
+  .main-card {
+    padding: 1rem;
+  }
+  
+  .main-title {
+    font-size: 1.5rem;
+  }
+  
+  .custom-room-button {
+    padding: 0.75rem;
+  }
+  
+  .task-card-body {
+    padding: 1rem;
+  }
+}
+  

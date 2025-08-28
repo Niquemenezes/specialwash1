@@ -1,0 +1,11 @@
+.custom-room-button {
+  background-color: #183b52 !important;
+  color: white !important;
+  border: none;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.custom-room-button:hover {
+  background-color:rgb(48, 99, 165) !important;
+}
+  
