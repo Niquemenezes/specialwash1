@@ -40,9 +40,9 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({
-        favicon: '4geeks.ico',
+        favicon: 'specialwash.ico',
         template: 'template.html'
     }),
-    new Dotenv({ safe: true, systemvars: true })
+    new Dotenv({ systemvars: true, allowEmptyValues: true, silent: true, safe: false })
   ]
 };

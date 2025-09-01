@@ -1,79 +1,72 @@
-import React, { useContext, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Context } from "../store/appContext";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faHotel,
-  faBroom,
-  faTools,
-  faRightFromBracket,
-  faHouse,
-  faBars
-} from "@fortawesome/free-solid-svg-icons";
-import DarkModeToggle from "./dark";
-import "../../styles/navbar.css";
+import React from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { getToken, getUser, isAdmin, clearToken } from "../utils/auth";
 
 export const Navbar = () => {
-  const { store, actions } = useContext(Context);
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
+  const token = getToken();
+  const user = getUser();
+  const admin = isAdmin();
 
-  const handleLogout = () => {
-    actions.logout();
-    navigate("/loginHotel");
-  };
-
-  const toggleMenu = () => {
-    setIsOpen(!isOpen);
+  const logout = () => {
+    clearToken();
+    sessionStorage.removeItem("user");
+    navigate("/login", { replace: true });
   };
 
   return (
-    <nav className="navbar navbar-expand-lg shadow-sm" style={{ backgroundColor: "#0dcaf0" }}>
-      <div className="container-fluid">
-        <span className="navbar-brand fw-bold text-white">specialwash</span>
+    <nav className="navbar navbar-expand-lg navbar-light bg-light mb-3 border-bottom">
+      <div className="container">
+        <NavLink className="navbar-brand d-flex align-items-center gap-2" to="/">
+          <img src={require("../../img/brand/logo-sw.png")} alt="SpecialWash" height="28" />
+          <span className="fw-bold">SpecialWash</span>
+        </NavLink>
 
-        <button
-          className="navbar-toggler"
-          type="button"
-          onClick={toggleMenu}
-          aria-label="Toggle navigation"
-        >
-          <FontAwesomeIcon icon={faBars} style={{ color: "white" }} />
+        <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navSW"
+                aria-controls="navSW" aria-expanded="false" aria-label="Toggle navigation">
+          <span className="navbar-toggler-icon"></span>
         </button>
 
-        <div className={`collapse navbar-collapse ${isOpen ? "show" : ""}`}>
-          <div className="ms-auto d-flex flex-column flex-lg-row align-items-end align-items-lg-center gap-2 mt-3 mt-lg-0">
-            <DarkModeToggle />
-
-            <Link className="btn btn-outline-light btn-sm d-flex align-items-center" to="/" onClick={() => setIsOpen(false)}>
-              <FontAwesomeIcon icon={faHouse} className="me-1" />
-              Inicio
-            </Link>
-
-            {!store.token && (
+        <div className="collapse navbar-collapse" id="navSW">
+          <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+            {!token && (
               <>
-                <Link className="btn btn-outline-light btn-sm d-flex align-items-center" to="/loginHotel" onClick={() => setIsOpen(false)}>
-                  <FontAwesomeIcon icon={faHotel} className="me-1" />
-                  Hotel
-                </Link>
-                <Link className="btn btn-outline-light btn-sm d-flex align-items-center" to="/loginHouseKeeper" onClick={() => setIsOpen(false)}>
-                  <FontAwesomeIcon icon={faBroom} className="me-1" />
-                  Camarera de Piso
-                </Link>
-                <Link className="btn btn-outline-light btn-sm d-flex align-items-center" to="/loginMaintenance" onClick={() => setIsOpen(false)}>
-                  <FontAwesomeIcon icon={faTools} className="me-1" />
-                  Mantenimiento
-                </Link>
+                <li className="nav-item"><NavLink className="nav-link" to="/" end>Inicio</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/login">Login</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/signup">Signup</NavLink></li>
               </>
             )}
 
-            {store.token && (
-              <button className="btn btn-light btn-sm d-flex align-items-center" onClick={() => { handleLogout(); setIsOpen(false); }}>
-                <FontAwesomeIcon icon={faRightFromBracket} className="me-2" />
-                Logout
-              </button>
+            {token && admin && (
+              <>
+                <li className="nav-item"><NavLink className="nav-link" to="/admin">Admin</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/productos">Productos</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/usuarios">Usuarios</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/proveedores">Proveedores</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/entradas">Entradas</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/salidas">Salidas</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/maquinaria">Maquinaria</NavLink></li>
+              </>
             )}
-          </div>
+
+            {token && !admin && (
+              <>
+                <li className="nav-item"><NavLink className="nav-link" to="/panel">Panel</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/entradas">Entradas</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/salidas">Salidas</NavLink></li>
+                <li className="nav-item"><NavLink className="nav-link" to="/maquinaria">Maquinaria</NavLink></li>
+              </>
+            )}
+          </ul>
+
+          {token && (
+            <div className="d-flex align-items-center gap-2">
+              <span className="navbar-text small">
+                Hola, {user?.nombre || user?.name || user?.email || "usuario"}
+              </span>
+              <button className="btn btn-outline-danger btn-sm" onClick={logout}>Salir</button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

@@ -1,3 +1,4 @@
+import "../styles/specialwash.css";
 //import "bootstrap-icons/font/bootstrap-icons.css";
 //import react into the bundle
 import React from "react";
