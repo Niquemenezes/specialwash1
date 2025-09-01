@@ -12,7 +12,7 @@ const Cloudinaryspecialwash = ({ setPhotoUrl, setErrorMessage }) => {
       fetch("https://api.cloudinary.com/v1_1/dnftnyi5g/image/upload", {
         method: "POST",
         body: formData,
-      })
+      , credentials: 'include'})
         .then((response) => response.json())
         .then((data) => {
           if (data.secure_url) {

@@ -1,2 +1,2 @@
 You can find a comprehensive documentation about this boilerplate here:
-https://start.4geeksacademy.com/starters/full-stack
+https://start.SpecialWashacademy.com/starters/full-stack

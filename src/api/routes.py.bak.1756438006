@@ -1,9 +1,4 @@
-from .models import Usuario
-from flask_jwt_extended import create_access_token, set_access_cookies, jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Blueprint, request, jsonify
-api = Blueprint("api", __name__)
-
 from flask_jwt_extended import (
     create_access_token, set_access_cookies, unset_jwt_cookies,
     jwt_required, get_jwt_identity
@@ -18,6 +13,9 @@ from .models import (
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+
+api = Blueprint("api", __name__)
+
 # ================== Helpers ==================
 
 def _current_identity():
@@ -93,7 +91,6 @@ def seed_admin():
     db.session.add(admin); db.session.commit()
     return jsonify(msg="Admin creado"), 201
 
-@api.post("/login")
 @api.post("/auth/login")
 def login():
     data = request.get_json() or {}
@@ -108,7 +105,7 @@ def login():
     if getattr(user, "rol", None) and rol and user.rol.lower() != rol:
         return jsonify(ok=False, msg="Rol incorrecto"), 401
 
-    token = create_access_token(identity=json.dumps({"id": user.id, "email": user.email, "rol": (user.rol or "").lower()}))
+    token = create_access_token(identity={"id": user.id, "email": user.email, "rol": (user.rol or "").lower()})
     resp = jsonify(ok=True, user={"id": user.id, "email": user.email, "rol": user.rol})
     # Cookie JWT para usar @jwt_required(locations=["cookies"]) si quieres
     set_access_cookies(resp, token, max_age=60*60*8)  # 8 horas
@@ -486,55 +483,3 @@ def reporte_gasto_productos():
         },
         "mensual": mensual,
     })
-
-@api.get("/hello")
-def hello():
-    return jsonify(msg="ok"), 200
-
-@api.post("/signup")
-def signup():
-    try:
-        data = request.get_json() or {}
-        nombre = (data.get("nombre") or data.get("name") or "").strip()
-        email  = (data.get("email") or "").strip().lower()
-        password = data.get("password") or ""
-        rol = (data.get("rol") or data.get("role") or "empleado").strip().lower()
-
-        if not email or not password or not nombre:
-            return jsonify(ok=False, msg="nombre, email y password son requeridos"), 400
-
-        if Usuario.query.filter_by(email=email).first():
-            return jsonify(ok=False, msg="El email ya existe"), 400
-
-        u = Usuario(nombre=nombre, email=email, password_hash=generate_password_hash(password), rol=rol)
-        db.session.add(u); db.session.commit()
-
-        token = create_access_token(identity=json.dumps({"id": u.id, "email": u.email, "rol": rol}))
-        resp = jsonify(ok=True, user={"id": u.id, "email": u.email, "rol": rol})
-        set_access_cookies(resp, token, max_age=60*60*8)
-        return resp, 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify(ok=False, msg=str(e)), 500
-
-
-@api.post("/auth/login_json")
-def login_json():
-    data = request.get_json() or {}
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    rol = (data.get("rol") or data.get("role") or "").strip().lower()
-
-    user = Usuario.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        return jsonify(ok=False, msg="Credenciales inválidas"), 401
-
-    if hasattr(user, "rol") and rol and user.rol.lower() != rol:
-        return jsonify(ok=False, msg="Rol incorrecto"), 401
-
-    # sub debe ser string -> guardamos el dict como JSON string
-    token = create_access_token(identity=json.dumps({"id": user.id, "email": user.email, "rol": getattr(user, "rol", "").lower()}))
-    body = jsonify(ok=True, token=token, user={"id": user.id, "email": user.email, "rol": getattr(user, "rol", None)})
-    # Dejamos también la cookie (útil para /auth/me)
-    set_access_cookies(body, token, max_age=60*60*8)
-    return body, 200

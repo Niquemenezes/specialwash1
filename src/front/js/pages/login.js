@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import API_URL from "../component/backendURL";
-import { setToken, setUser } from "../utils/auth";
+import { setToken, setUser, isAdmin } from "../utils/auth";
 
 export default function Login() {
   const [form, setForm] = useState({ email:"", password:"" });
@@ -11,20 +11,20 @@ export default function Login() {
   const onSubmit = async e => {
     e.preventDefault(); setMsg("");
     try{
-      const res = await fetch(`${API_URL}/api/login`, {
+      const res = await fetch(`${API_URL}/api/auth/login_json`, {
         method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        headers:{ "Content-Type":"application/json"},
         body: JSON.stringify(form)
       });
       const data = await res.json();
       if(!res.ok) throw new Error(data.msg || data.error || "Credenciales inválidas");
 
-      // Backend suele devolver access_token y a veces user
       const token = data.access_token || data.token;
       if (!token) throw new Error("No llegó el token");
       setToken(token);
       if (data.user) setUser(data.user);
-      window.location.href = "/admin"; // directo al panel
+
+      window.location.href = isAdmin() ? "/admin" : "/panel";
     }catch(err){ setMsg(err.message); }
   };
 

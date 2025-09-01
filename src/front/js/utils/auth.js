@@ -22,17 +22,17 @@ export const authHeaders = () => {
 async function safeText(res){ try { return await res.text(); } catch { return `HTTP ${res.status}`; } }
 
 export async function apiGet(path) {
-  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() , credentials: 'include'});
   if (!res.ok) throw new Error(await safeText(res));
   return res.json();
 }
 export async function apiPost(path, data) {
-  const res = await fetch(`${API_URL}${path}`, { method: "POST", headers: authHeaders(), body: JSON.stringify(data) });
+  const res = await fetch(`${API_URL}${path}`, { method: "POST", headers: authHeaders(), body: JSON.stringify(data) , credentials: 'include'});
   if (!res.ok) throw new Error(await safeText(res));
   return res.json();
 }
 export async function apiDelete(path) {
-  const res = await fetch(`${API_URL}${path}`, { method: "DELETE", headers: authHeaders() });
+  const res = await fetch(`${API_URL}${path}`, { method: "DELETE", headers: authHeaders() , credentials: 'include'});
   if (!res.ok) throw new Error(await safeText(res));
   return res.json();
 }

@@ -1,0 +1,13 @@
+:root{
+  --sw-black:#000000;
+  --sw-yellow:#f7d100; /* amarillo vivo estilo detailing */
+  --sw-gray:#f6f7f9;
+}
+.navbar-light .navbar-brand, .navbar .nav-link { color:#222 !important; }
+.navbar .nav-link.active { font-weight:600; border-bottom:2px solid var(--sw-yellow); }
+.btn-dark { background:var(--sw-black) !important; border-color:var(--sw-black) !important; }
+.btn-dark:hover { opacity:.9; }
+.btn-warning { background:var(--sw-yellow) !important; border-color:var(--sw-yellow) !important; color:#000 !important; }
+a, .link-primary { color:var(--sw-black); }
+.badge-sw { background:var(--sw-yellow); color:#000; }
+.card { border-radius:14px; }

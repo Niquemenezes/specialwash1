@@ -7,7 +7,7 @@ def setup_admin(app):
     # Configuración de la clave secreta y la interfaz de administración
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample_key')  # Usamos un valor predeterminado 'sample_key' si no está definida
     app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'  # Define el tema de la interfaz de administración
-    admin = Admin(app, name='4Geeks Admin', template_mode='bootstrap3')
+    admin = Admin(app, name='SpecialWash Admin', template_mode='bootstrap3')
     
     
     admin.add_view(ModelView(Usuario, db.session))

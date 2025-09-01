@@ -131,7 +131,7 @@ const HotelTheme = () => {
     try {
       const response = await fetch(`${backendUrl}/api/hoteltheme/${id}`, {
         method: 'DELETE',
-      });
+      , credentials: 'include'});
 
       if (response.ok) {
         setHotelThemes(hotelThemes.filter(item => item.id !== id));
