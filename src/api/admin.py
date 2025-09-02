@@ -1,6 +1,6 @@
 import os
 from flask_admin import Admin
-from .models import db, Usuario, Proveedor, RegistroSalidaProducto, RegistroEntradaProducto, Producto, Maquinaria
+from .models import db, User, Proveedor, Salida, Entrada, Producto, Maquinaria
 from flask_admin.contrib.sqla import ModelView
 
 def setup_admin(app):
@@ -10,11 +10,11 @@ def setup_admin(app):
     admin = Admin(app, name='SpecialWash Admin', template_mode='bootstrap3')
     
     
-    admin.add_view(ModelView(Usuario, db.session))
-    admin.add_view(ModelView(Proveedor, db.session))
-    admin.add_view(ModelView(RegistroSalidaProducto, db.session))
-    admin.add_view(ModelView(RegistroEntradaProducto, db.session))
+    admin.add_view(ModelView(User, db.session))
     admin.add_view(ModelView(Producto, db.session))
+    admin.add_view(ModelView(Salida, db.session))
+    admin.add_view(ModelView(Entrada, db.session))
+    admin.add_view(ModelView(Proveedor, db.session))
     admin.add_view(ModelView(Maquinaria, db.session))
     
     # Aquí puedes agregar más modelos a la interfaz de administración si lo necesitas

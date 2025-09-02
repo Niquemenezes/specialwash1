@@ -1,48 +1,52 @@
-import React, { useState } from "react";
-import API_URL from "../component/backendURL";
-import { setToken, setUser, isAdmin } from "../utils/auth";
+// src/front/js/pages/login.js (ejemplo)
+import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Context } from "../store/appContext";
 
 export default function Login() {
-  const [form, setForm] = useState({ email:"", password:"" });
-  const [msg, setMsg] = useState("");
+  const { actions } = useContext(Context);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const navigate = useNavigate();
 
-  const onChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setErr("");
+    const res = await actions.login(email, password, "empleado"); // o sin rol si lo pides en backend
+    if (!res?.ok) {
+      setErr(res?.error || "Login inválido");
+      return;
+    }
 
-  const onSubmit = async e => {
-    e.preventDefault(); setMsg("");
-    try{
-      const res = await fetch(`${API_URL}/api/auth/login_json`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json"},
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.msg || data.error || "Credenciales inválidas");
+    // Guarda token/rol para Navbar y guards
+    if (res.token) {
+      sessionStorage.setItem("token", res.token);
+      localStorage.setItem("token", res.token);
+    }
+    const rol = res.user?.rol || "empleado";
+    sessionStorage.setItem("rol", rol);
+    localStorage.setItem("rol", rol);
 
-      const token = data.access_token || data.token;
-      if (!token) throw new Error("No llegó el token");
-      setToken(token);
-      if (data.user) setUser(data.user);
-
-      window.location.href = isAdmin() ? "/admin" : "/panel";
-    }catch(err){ setMsg(err.message); }
+    // Redirige a rutas existentes
+    navigate(rol === "administrador" ? "/productos" : "/mi-trabajo/consumo", { replace: true });
   };
 
   return (
-    <div className="container py-4">
-      <h2>Login</h2>
-      <form onSubmit={onSubmit} className="card p-3">
-        <div className="mb-2">
-          <label>Email</label>
-          <input className="form-control" name="email" type="email" value={form.email} onChange={onChange} required />
+    <div className="container mt-4" style={{ maxWidth: 420 }}>
+      <h2>Iniciar sesión</h2>
+      {err && <div className="alert alert-danger">{err}</div>}
+      <form onSubmit={onSubmit}>
+        <div className="mb-3">
+          <label className="form-label">Email</label>
+          <input className="form-control" value={email} onChange={(e)=>setEmail(e.target.value)} />
         </div>
         <div className="mb-3">
-          <label>Password</label>
-          <input className="form-control" name="password" type="password" value={form.password} onChange={onChange} required />
+          <label className="form-label">Contraseña</label>
+          <input type="password" className="form-control" value={password} onChange={(e)=>setPassword(e.target.value)} />
         </div>
-        <button className="btn btn-dark">Entrar</button>
+        <button className="btn btn-primary w-100">Entrar</button>
       </form>
-      {msg && <p className="mt-3 text-danger">{msg}</p>}
     </div>
   );
 }

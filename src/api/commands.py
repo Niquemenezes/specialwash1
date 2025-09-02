@@ -1,34 +1,58 @@
+# src/api/commands.py
+from flask import current_app
+from werkzeug.security import generate_password_hash
+from .models import db, User, Producto, Proveedor
 
-import click
-from api.models import db, Usuario
-
-"""
-In this file, you can add as many commands as you want using the @app.cli.command decorator
-Flask commands are usefull to run cronjobs or tasks outside of the API but sill in integration 
-with youy database, for example: Import the price of bitcoin every night as 12am
-"""
 def setup_commands(app):
-    
-    """ 
-    This is an example command "insert-test-users" that you can run from the command line
-    by typing: $ flask insert-test-users 5
-    Note: 5 is the number of users to add
-    """
-    @app.cli.command("insert-test-users") # name of our command
-    @click.argument("count") # argument of out command
-    def insert_test_users(count):
-        print("Creating test users")
-        for x in range(1, int(count) + 1):
-            user = User()
-            user.email = "test_user" + str(x) + "@test.com"
-            user.password = "123456"
-            user.is_active = True
-            db.session.add(user)
-            db.session.commit()
-            print("User: ", user.email, " created.")
+    @app.cli.command("create-admin")
+    def _help():
+        """Uso: pipenv run create-admin "Nombre" email@sw.es password"""
 
-        print("All test users created")
+    @app.cli.command("create-admin")
+    def create_admin_cli():
+        import sys
+        args = sys.argv
+        # Espera: pipenv run create-admin "Nombre" email pass
+        if len(args) < 5:
+            print('Uso: pipenv run create-admin "Nombre" email@sw.es password')
+            sys.exit(1)
+        nombre = args[2]
+        email = args[3]
+        password = args[4]
+        with app.app_context():
+            if User.query.filter_by(email=email).first():
+                print("Ya existe un usuario con ese email")
+                return
+            u = User(nombre=nombre, email=email, rol="administrador",
+                     password_hash=generate_password_hash(password))
+            db.session.add(u); db.session.commit()
+            print(f"Admin creado: {email}")
+
+    @app.cli.command("insert-test-users")
+    def insert_test_users():
+        """Crea 5 usuarios empleados de prueba."""
+        with app.app_context():
+            for i in range(1, 6):
+                email = f"test_user{i}@test.com"
+                if not User.query.filter_by(email=email).first():
+                    u = User(nombre=f"Test {i}", email=email, rol="empleado",
+                             password_hash=generate_password_hash("test1234"))
+                    db.session.add(u)
+                    print(f"{email} creado.")
+            db.session.commit()
+            print("Usuarios de prueba creados.")
 
     @app.cli.command("insert-test-data")
     def insert_test_data():
-        pass
+        """Inserta proveedores y productos básicos."""
+        with app.app_context():
+            if not Proveedor.query.first():
+                db.session.add_all([Proveedor(nombre="Proveedor A"), Proveedor(nombre="Proveedor B")])
+            if not Producto.query.first():
+                db.session.add_all([
+                    Producto(nombre="Detergente", categoria="Químicos", stock_minimo=5, stock_actual=20),
+                    Producto(nombre="Suavizante", categoria="Químicos", stock_minimo=5, stock_actual=15),
+                    Producto(nombre="Bolsa lavandería", categoria="Consumibles", stock_minimo=50, stock_actual=200),
+                ])
+            db.session.commit()
+            print("Datos de prueba insertados.")
