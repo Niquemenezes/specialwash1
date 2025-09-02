@@ -1,13 +1,117 @@
-:root{
-  --sw-black:#000000;
-  --sw-yellow:#f7d100; /* amarillo vivo estilo detailing */
-  --sw-gray:#f6f7f9;
+/* -------- SpecialWash Navbar -------- */
+
+.sw-navbar .brand-text {
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
-.navbar-light .navbar-brand, .navbar .nav-link { color:#222 !important; }
-.navbar .nav-link.active { font-weight:600; border-bottom:2px solid var(--sw-yellow); }
-.btn-dark { background:var(--sw-black) !important; border-color:var(--sw-black) !important; }
-.btn-dark:hover { opacity:.9; }
-.btn-warning { background:var(--sw-yellow) !important; border-color:var(--sw-yellow) !important; color:#000 !important; }
-a, .link-primary { color:var(--sw-black); }
-.badge-sw { background:var(--sw-yellow); color:#000; }
-.card { border-radius:14px; }
+
+.sw-navlink {
+  position: relative;
+  font-weight: 600;
+  color: #fff !important;
+  padding: 0.6rem 0.9rem !important;
+  transition: color .2s ease;
+}
+
+.sw-navlink:hover {
+  color: #d4af37 !important;
+}
+
+.sw-navlink.active {
+  color: #d4af37 !important;
+}
+
+.sw-navlink.active::after,
+.sw-navlink:hover::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  background: #d4af37;
+  border-radius: 2px;
+}
+
+/* Botón dorado */
+.sw-btn-gold {
+  background-color: #d4af37 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 0.45rem 0.9rem !important;
+  box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
+  border: none;
+}
+
+.sw-btn-gold:hover {
+  filter: brightness(1.05);
+}
+
+/* Toggler visible en fondo oscuro */
+.navbar-toggler {
+  border-color: #d4af37 !important;
+}
+.navbar-dark .navbar-toggler-icon {
+  filter: invert(1) brightness(2);
+}
+/* -------- SpecialWash Navbar -------- */
+
+.sw-navbar .brand-text {
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.sw-navlink {
+  position: relative;
+  font-weight: 600;
+  color: #fff !important;
+  padding: 0.6rem 0.9rem !important;
+  transition: color .2s ease;
+}
+.sw-navlink:hover { color: #d4af37 !important; }
+.sw-navlink.active { color: #d4af37 !important; }
+.sw-navlink.active::after,
+.sw-navlink:hover::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  background: #d4af37;
+  border-radius: 2px;
+}
+
+/* Dropdown en modo oscuro */
+.sw-dropdown {
+  background: #0f0f0f;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  box-shadow: 0 12px 22px rgba(0,0,0,0.4);
+}
+.sw-dropdown .dropdown-item {
+  color: #eee;
+  font-weight: 600;
+}
+.sw-dropdown .dropdown-item:hover,
+.sw-dropdown .dropdown-item:focus,
+.sw-dropdown .dropdown-item.active {
+  background: rgba(212, 175, 55, 0.12);
+  color: #d4af37;
+}
+
+/* Botón dorado */
+.sw-btn-gold {
+  background-color: #d4af37 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 0.45rem 0.9rem !important;
+  box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
+  border: none;
+}
+.sw-btn-gold:hover { filter: brightness(1.05); }
+
+/* Toggler visible en fondo oscuro */
+.navbar-toggler { border-color: #d4af37 !important; }
+.navbar-dark .navbar-toggler-icon { filter: invert(1) brightness(2); }

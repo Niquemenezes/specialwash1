@@ -1,23 +1,20 @@
 import "../styles/specialwash.css";
 //import "bootstrap-icons/font/bootstrap-icons.css";
-//import react into the bundle
+
+// React
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 
-//include your index.scss file into the bundle
+// CSS
 import "../styles/index.css";
-
-//import your own components
-import Layout from "./layout";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min";
 
+// Layout principal
+import Layout from "./layout";
 
-
-
-//render your react application
-ReactDOM.render(<Layout />, document.querySelector("#app"));
-
-
-
+// Render app en React 18+
+const container = document.querySelector("#app");
+const root = createRoot(container);
+root.render(<Layout />);
