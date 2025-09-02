@@ -4,11 +4,23 @@ import logo from "../../img/logospecialwash.jpg";
 
 const NavbarSW = () => {
   const navigate = useNavigate();
-  const token = sessionStorage.getItem("token");
 
-  const handleLogout = () => {
+  // ✅ usa ambas storages
+  const token = sessionStorage.getItem("token") || localStorage.getItem("token");
+  const rol = sessionStorage.getItem("rol") || localStorage.getItem("rol");
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+    } catch (_) {}
+    // limpia ambas storages
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("rol");
+    localStorage.removeItem("token");
+    localStorage.removeItem("rol");
     navigate("/login", { replace: true });
   };
 
@@ -22,11 +34,13 @@ const NavbarSW = () => {
       }}
     >
       <div className="container">
+        {/* Lleva siempre a la portada pública */}
         <Link className="navbar-brand d-flex align-items-center gap-2" to="/" style={{ color: "#fff", fontWeight: 800 }}>
           <img src={logo} alt="SpecialWash" height="30" style={{ display: "block" }} />
           <span className="brand-text">SpecialWash</span>
         </Link>
 
+        {/* Hamburguesa */}
         <button
           className="navbar-toggler"
           type="button"
@@ -47,38 +61,62 @@ const NavbarSW = () => {
               <>
                 {/* Almacén */}
                 <li className="nav-item dropdown">
-                  <a className="nav-link dropdown-toggle sw-navlink" href="#" role="button" data-bs-toggle="dropdown">
+                  <a
+                    className="nav-link dropdown-toggle sw-navlink"
+                    href="#"
+                    role="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
                     Almacén
                   </a>
                   <ul className="dropdown-menu dropdown-menu-dark sw-dropdown">
                     <li><NavLink to="/productos" className="dropdown-item">Productos</NavLink></li>
-                    <li><NavLink to="/entradas/registrar" className="dropdown-item">Registrar Entrada</NavLink></li>
+                    {rol === "administrador" && (
+                      <li><NavLink to="/entradas/registrar" className="dropdown-item">Registrar Entrada</NavLink></li>
+                    )}
                     <li><NavLink to="/salidas/registrar" className="dropdown-item">Registrar Salida</NavLink></li>
                   </ul>
                 </li>
 
-                {/* Gestión */}
-                <li className="nav-item dropdown">
-                  <a className="nav-link dropdown-toggle sw-navlink" href="#" role="button" data-bs-toggle="dropdown">
-                    Gestión
-                  </a>
-                  <ul className="dropdown-menu dropdown-menu-dark sw-dropdown">
-                    <li><NavLink to="/usuarios" className="dropdown-item">Usuarios</NavLink></li>
-                    <li><NavLink to="/proveedores" className="dropdown-item">Proveedores</NavLink></li>
-                    <li><NavLink to="/maquinaria" className="dropdown-item">Maquinaria</NavLink></li>
-                  </ul>
-                </li>
+                {/* Gestión (solo admin) */}
+                {rol === "administrador" && (
+                  <li className="nav-item dropdown">
+                    <a
+                      className="nav-link dropdown-toggle sw-navlink"
+                      href="#"
+                      role="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                    >
+                      Gestión
+                    </a>
+                    <ul className="dropdown-menu dropdown-menu-dark sw-dropdown">
+                      <li><NavLink to="/usuarios" className="dropdown-item">Usuarios</NavLink></li>
+                      <li><NavLink to="/proveedores" className="dropdown-item">Proveedores</NavLink></li>
+                      <li><NavLink to="/maquinaria" className="dropdown-item">Maquinaria</NavLink></li>
+                    </ul>
+                  </li>
+                )}
 
-                {/* Informes */}
-                <li className="nav-item dropdown">
-                  <a className="nav-link dropdown-toggle sw-navlink" href="#" role="button" data-bs-toggle="dropdown">
-                    Informes
-                  </a>
-                  <ul className="dropdown-menu dropdown-menu-dark sw-dropdown">
-                    <li><NavLink to="/informes/entradas" className="dropdown-item">Resumen de Entradas</NavLink></li>
-                    <li><NavLink to="/informes/salidas" className="dropdown-item">Historial de Salidas</NavLink></li>
-                  </ul>
-                </li>
+                {/* Informes (solo admin) */}
+                {rol === "administrador" && (
+                  <li className="nav-item dropdown">
+                    <a
+                      className="nav-link dropdown-toggle sw-navlink"
+                      href="#"
+                      role="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                    >
+                      Informes
+                    </a>
+                    <ul className="dropdown-menu dropdown-menu-dark sw-dropdown">
+                      <li><NavLink to="/informes/entradas" className="dropdown-item">Resumen de Entradas</NavLink></li>
+                      <li><NavLink to="/informes/salidas" className="dropdown-item">Historial de Salidas</NavLink></li>
+                    </ul>
+                  </li>
+                )}
               </>
             )}
           </ul>

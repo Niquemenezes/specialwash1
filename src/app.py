@@ -19,18 +19,19 @@ load_dotenv()
 # ===== Crear la app =====
 app = Flask(__name__)
 
-# ===== Config JWT en cookies =====
-# Nota: al usar cookies entre dominios, necesitas CORS con supports_credentials=True
-app.config['JWT_TOKEN_LOCATION'] = ['cookies']
-app.config['JWT_COOKIE_SECURE'] = True           # True para HTTPS (Codespaces usa HTTPS)
-app.config['JWT_COOKIE_SAMESITE'] = 'None'       # 'None' para permitir cross-site
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False    # Desactiva CSRF si no lo usas
+# ===== Config JWT (headers + cookies) =====
+# Acepta tokens en Authorization y/o cookies. Así el frontend puede usar Authorization.
+app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']
+
+# En local (HTTP) las cookies seguras no se envían; en producción sí.
+IS_PROD = os.getenv("FLASK_ENV") == "production" or os.getenv("ENV") == "production"
+app.config['JWT_COOKIE_SECURE'] = True if IS_PROD else False  # True en producción (HTTPS)
+app.config['JWT_COOKIE_SAMESITE'] = 'None' if IS_PROD else 'Lax'
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Desactiva CSRF si no lo usas
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY", "change-me-in-prod")
 
 # ===== DB Config =====
-# Prioriza DATABASE_URL (Render/Heroku), si no, SQLALCHEMY_DATABASE_URI, si no, SQLite local.
 db_url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "sqlite:///dev.db"
-# Heroku legado "postgres://"
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
@@ -53,7 +54,6 @@ app.register_blueprint(api, url_prefix='/api')
 setup_admin(app)
 
 # ===== CORS (ÚNICO BLOQUE) =====
-# Permite tu frontend local y el dominio público de Codespaces/GitHub Preview
 _ALLOWED_ORIGINS = [
     re.compile(r"https://.*\.app\.github\.dev$"),  # Codespaces/GitHub preview (HTTPS)
     "http://localhost:3000",
@@ -67,7 +67,7 @@ CORS(
         "origins": _ALLOWED_ORIGINS,
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True,   # IMPORTANTE: usas cookies JWT
+        "supports_credentials": True,
     }},
 )
 
@@ -77,12 +77,12 @@ def handle_invalid_usage(error):
     return jsonify(error.to_dict()), error.status_code
 
 # 404 JSON para rutas /api/*, y SPA para el resto
+from flask import Response
 @app.errorhandler(404)
 def not_found(e):
     p = (getattr(request, "path", "") or "")
     if p.startswith("/api/"):
         return jsonify(ok=False, msg=f"Endpoint no encontrado: {p}"), 404
-    # para el resto, sirve la SPA
     return send_from_directory(static_file_dir, "index.html")
 
 # ===== Rutas básicas =====
@@ -112,16 +112,14 @@ def home():
 # ===== (opcional) Log simple de requests en consola =====
 @app.before_request
 def _req_log():
-    print(
-        f"REQ {request.method} {request.path} Origin: {request.headers.get('Origin')}",
-        flush=True
-    )
+    print(f"REQ {request.method} {request.path} Origin: {request.headers.get('Origin')}", flush=True)
 
 # ===== Entry point =====
 if __name__ == "__main__":
-    # Crea tablas si usas SQLite sin migraciones (no molesta en Postgres)
     with app.app_context():
         db.create_all()
-
     PORT = int(os.environ.get("PORT", 3001))
     app.run(host="0.0.0.0", port=PORT, debug=True)
+
+from api.commands import setup_commands
+setup_commands(app)

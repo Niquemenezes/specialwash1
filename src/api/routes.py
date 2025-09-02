@@ -1,540 +1,244 @@
-from .models import Usuario
-from flask_jwt_extended import create_access_token, set_access_cookies, jwt_required, get_jwt_identity
+# src/api/routes.py
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import (
+    create_access_token, jwt_required, get_jwt, get_jwt_identity
+)
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import Blueprint, request, jsonify
+from functools import wraps
+
+from .models import db, User, Producto, Proveedor, Entrada, Salida
+
 api = Blueprint("api", __name__)
 
-from flask_jwt_extended import (
-    create_access_token, set_access_cookies, unset_jwt_cookies,
-    jwt_required, get_jwt_identity
-)
-from werkzeug.security import generate_password_hash
-from .db import db
-from .models import (
-    Usuario, Proveedor, Producto,
-    RegistroEntradaProducto, RegistroSalidaProducto,
-    Maquinaria, serialize_list
-)
-import json
-from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-# ================== Helpers ==================
+# ---------- helper de roles ----------
+def role_required(*roles):
+    def outer(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            claims = get_jwt() or {}
+            rol = claims.get("rol")
+            if rol not in roles:
+                return jsonify({"msg": "Forbidden"}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return outer
 
-def _current_identity():
-    ident = get_jwt_identity()
-    try:
-        return json.loads(ident) if isinstance(ident, str) else ident
-    except Exception:
-        return {"sub": None, "rol": None}
-
-def admin_required(fn):
-    from functools import wraps
-    @wraps(fn)
-    @jwt_required()
-    def wrapper(*args, **kwargs):
-        ident = _current_identity() or {}
-        if (ident.get("rol") or "").lower() != "administrador":
-            return jsonify(msg="Solo administradores"), 403
-        return fn(*args, **kwargs)
-    return wrapper
-
-def _parse_date(s):
-    if not s: 
-        return None
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return None
-
-def _to_decimal(x):
-    if x is None or x == "":
-        return None
-    try:
-        return Decimal(str(x))
-    except Exception:
-        return None
-
-def _importe_con_iva(row):
-    con = _to_decimal(row.precio_con_iva)
-    if con is not None:
-        return con
-    sin = _to_decimal(row.precio_sin_iva)
-    iva = _to_decimal(row.iva_porcentaje)
-    if sin is not None and iva is not None:
-        return (sin * (Decimal(1) + iva / Decimal(100))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return Decimal("0.00")
-
-def _importe_sin_iva(row):
-    sin = _to_decimal(row.precio_sin_iva)
-    if sin is not None:
-        return sin.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    con = _to_decimal(row.precio_con_iva)
-    iva = _to_decimal(row.iva_porcentaje)
-    if con is not None and iva is not None and (Decimal(1) + iva/Decimal(100)) != 0:
-        return (con / (Decimal(1) + iva / Decimal(100))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return Decimal("0.00")
-
-# ================== PING ==================
-@api.get("/ping")
-def ping():
-    return jsonify(pong=True)
-
-# ================== AUTH ==================
-@api.post("/auth/seed-admin")
-def seed_admin():
-    if Usuario.query.filter_by(email="admin@specialwash.local").first():
-        return jsonify(msg="Admin ya existe"), 200
-    admin = Usuario(
-        nombre="Admin",
-        email="admin@specialwash.local",
-        password_hash=generate_password_hash("admin12345"),
-        rol="AdministradOR".lower()  # se guarda en minúsculas
-    )
-    db.session.add(admin); db.session.commit()
-    return jsonify(msg="Admin creado"), 201
-
-@api.post("/login")
-@api.post("/auth/login")
-def login():
-    data = request.get_json() or {}
-    email = (data.get("email") or "").lower().strip()
-    password = data.get("password") or ""
-    rol = (data.get("rol") or data.get("role") or "").lower().strip()
-
-    user = Usuario.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        return jsonify(ok=False, msg="Credenciales inválidas"), 401
-
-    if getattr(user, "rol", None) and rol and user.rol.lower() != rol:
-        return jsonify(ok=False, msg="Rol incorrecto"), 401
-
-    token = create_access_token(identity=json.dumps({"id": user.id, "email": user.email, "rol": (user.rol or "").lower()}))
-    resp = jsonify(ok=True, user={"id": user.id, "email": user.email, "rol": user.rol})
-    # Cookie JWT para usar @jwt_required(locations=["cookies"]) si quieres
-    set_access_cookies(resp, token, max_age=60*60*8)  # 8 horas
-    return resp, 200
-
-@api.post("/auth/logout")
-def logout():
-    resp = jsonify(ok=True)
-    unset_jwt_cookies(resp)
-    return resp, 200
-
-@api.get("/auth/me")
-@jwt_required(locations=["cookies"])
-def auth_me():
-    ident = get_jwt_identity()
-    return jsonify(ok=True, user=ident), 200
-
-# ================== USUARIOS (admin) ==================
-@api.get("/usuarios")
-@admin_required
-def usuarios_list():
-    items = Usuario.query.order_by(Usuario.nombre).all()
-    return jsonify(serialize_list(items))
-
-@api.post("/usuarios")
-@admin_required
-def usuarios_create():
-    data = request.get_json() or {}
-    nombre = data.get("nombre") or ""
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or "empleado123"
-    rol = (data.get("rol") or "empleado").lower()
-
-    if not email:
-        return jsonify(msg="Email requerido"), 400
-    if Usuario.query.filter_by(email=email).first():
-        return jsonify(msg="El email ya existe"), 400
-
-    u = Usuario(
-        nombre=nombre or (email.split("@")[0] if "@" in email else email),
-        email=email,
-        password_hash=generate_password_hash(password),
-        rol=rol
-    )
-    db.session.add(u); db.session.commit()
-    return jsonify(u.serialize()), 201
-
-@api.put("/usuarios/<int:uid>")
-@admin_required
-def usuarios_update(uid):
-    u = Usuario.query.get_or_404(uid)
-    data = request.get_json() or {}
-    if "nombre" in data: u.nombre = data["nombre"]
-    if "email" in data:
-        new_email = data["email"].strip().lower()
-        if Usuario.query.filter(Usuario.email == new_email, Usuario.id != uid).first():
-            return jsonify(msg="Email ya en uso"), 400
-        u.email = new_email
-    if "rol" in data: u.rol = (data["rol"] or "").lower()
-    if "password" in data and data["password"]:
-        u.set_password(data["password"])
-    db.session.commit()
-    return jsonify(u.serialize())
-
-@api.delete("/usuarios/<int:uid>")
-@admin_required
-def usuarios_delete(uid):
-    u = Usuario.query.get_or_404(uid)
-    db.session.delete(u); db.session.commit()
-    return jsonify(msg="Usuario eliminado")
-
-# ================== PROVEEDORES ==================
-@api.get("/proveedores")
-@jwt_required()
-def proveedores_list():
-    items = Proveedor.query.order_by(Proveedor.nombre).all()
-    return jsonify(serialize_list(items))
-
-@api.post("/proveedores")
-@admin_required
-def proveedores_create():
-    data = request.get_json() or {}
-    p = Proveedor(
-        nombre=data["nombre"],
-        contacto=data.get("contacto"),
-        telefono=data.get("telefono"),
-    )
-    db.session.add(p); db.session.commit()
-    return jsonify(p.serialize()), 201
-
-@api.put("/proveedores/<int:pid>")
-@admin_required
-def proveedores_update(pid):
-    p = Proveedor.query.get_or_404(pid)
-    data = request.get_json() or {}
-    if "nombre" in data: p.nombre = data["nombre"]
-    if "contacto" in data: p.contacto = data["contacto"]
-    if "telefono" in data: p.telefono = data["telefono"]
-    db.session.commit()
-    return jsonify(p.serialize())
-
-@api.delete("/proveedores/<int:pid>")
-@admin_required
-def proveedores_delete(pid):
-    p = Proveedor.query.get_or_404(pid)
-    db.session.delete(p); db.session.commit()
-    return jsonify(msg="Proveedor eliminado")
-
-# ================== PRODUCTOS ==================
-@api.get("/productos")
-@jwt_required()
-def productos_list():
-    items = Producto.query.order_by(Producto.nombre).all()
-    return jsonify(serialize_list(items))
-
-@api.post("/productos")
-@admin_required
-def productos_create():
-    data = request.get_json() or {}
-    if not data.get("nombre"):
-        return jsonify(msg="Nombre es requerido"), 400
-
-    stock_minimo = int(data.get("stock_minimo", 0))
-    stock_actual = int(data.get("stock_actual", 0))
-    if stock_minimo < 0 or stock_actual < 0:
-        return jsonify(msg="Los valores de stock no pueden ser negativos"), 400
-
-    prod = Producto(
-        nombre=data["nombre"],
-        categoria=data.get("categoria"),
-        stock_minimo=stock_minimo,
-        stock_actual=stock_actual,
-    )
-    db.session.add(prod); db.session.commit()
-    return jsonify(prod.serialize()), 201
-
-@api.put("/productos/<int:pid>")
-@admin_required
-def productos_update(pid):
-    prod = Producto.query.get_or_404(pid)
-    data = request.get_json() or {}
-    for field in ["nombre","categoria","stock_minimo","stock_actual"]:
-        if field in data:
-            setattr(prod, field, int(data[field]) if field in ["stock_minimo","stock_actual"] else data[field])
-    db.session.commit()
-    return jsonify(prod.serialize())
-
-@api.delete("/productos/<int:pid>")
-@admin_required
-def productos_delete(pid):
-    prod = Producto.query.get_or_404(pid)
-    db.session.delete(prod); db.session.commit()
-    return jsonify(msg="Producto eliminado")
-
-# ================== ENTRADAS / SALIDAS ==================
-@api.post("/registro-entrada")
-@admin_required
-def registrar_entrada():
-    def d(x):
-        if x in (None, ""): return None
-        try: return Decimal(str(x))
-        except: return None
-
-    data = request.get_json() or {}
-    prod = Producto.query.get_or_404(int(data["producto_id"]))
-    cantidad = int(data["cantidad"])
-
-    tipo_documento = (data.get("tipo_documento") or "").lower() or None
-    numero_documento = data.get("numero_documento") or None
-
-    bruto = d(data.get("precio_bruto_sin_iva"))
-    desc_pct = d(data.get("descuento_porcentaje"))
-    desc_imp = d(data.get("descuento_importe"))
-    neto_sin = d(data.get("precio_sin_iva"))
-    iva_pct  = d(data.get("iva_porcentaje"))
-    con_iva  = d(data.get("precio_con_iva"))
-
-    if neto_sin is None and bruto is not None:
-        neto_sin = bruto
-        if desc_pct is not None:
-            neto_sin = neto_sin - (bruto * (desc_pct / Decimal(100)))
-        if desc_imp is not None:
-            neto_sin = neto_sin - desc_imp
-        neto_sin = neto_sin.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    if con_iva is None and neto_sin is not None and iva_pct is not None:
-        con_iva = (neto_sin * (Decimal(1) + iva_pct / Decimal(100))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    if neto_sin is None and con_iva is not None and iva_pct is not None and (Decimal(1) + iva_pct/Decimal(100)) != 0:
-        neto_sin = (con_iva / (Decimal(1) + iva_pct / Decimal(100))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    entrada = RegistroEntradaProducto(
-        producto_id=prod.id,
-        proveedor_id=data.get("proveedor_id"),
-        cantidad=cantidad,
-        tipo_documento=tipo_documento,
-        numero_documento=numero_documento,
-        precio_bruto_sin_iva=bruto,
-        descuento_porcentaje=desc_pct,
-        descuento_importe=desc_imp,
-        precio_sin_iva=neto_sin,
-        iva_porcentaje=iva_pct,
-        precio_con_iva=con_iva,
-    )
-
-    prod.stock_actual = (prod.stock_actual or 0) + cantidad
-    db.session.add(entrada); db.session.commit()
-
-    return jsonify({
-        "msg": "Entrada registrada",
-        "stock_actual": prod.stock_actual,
-        "entrada": entrada.serialize(),
-    }), 201
-
-@api.get("/registro-entrada")
-@jwt_required()
-def entradas_list():
-    # Incluye nombre de producto
-    rows = (
-        db.session.query(
-            RegistroEntradaProducto,
-            Producto.nombre.label("nombre_producto")
-        )
-        .join(Producto, RegistroEntradaProducto.producto_id == Producto.id)
-        .order_by(RegistroEntradaProducto.fecha_entrada.desc())
-        .all()
-    )
-    data = []
-    for r, nombre_producto in rows:
-        item = r.serialize()
-        item["nombre_producto"] = nombre_producto
-        data.append(item)
-    return jsonify(data)
-
-@api.post("/registro-salida")
-@admin_required
-def registrar_salida():
-    data = request.get_json() or {}
-    prod = Producto.query.get_or_404(int(data["producto_id"]))
-    cantidad = int(data["cantidad"])
-    if cantidad <= 0:
-        return jsonify(msg="La cantidad debe ser mayor a 0"), 400
-    if (prod.stock_actual or 0) < cantidad:
-        return jsonify(msg="Stock insuficiente"), 400
-
-    with db.session.begin_nested():
-        salida = RegistroSalidaProducto(producto_id=prod.id, cantidad=cantidad)
-        prod.stock_actual = (prod.stock_actual or 0) - cantidad
-        db.session.add(salida)
-    db.session.commit()
-
-    return jsonify(msg="Salida registrada", stock_actual=prod.stock_actual, salida=salida.serialize()), 201
-
-@api.get("/registro-salida")
-@jwt_required()
-def salidas_list():
-    rows = (
-        db.session.query(
-            RegistroSalidaProducto,
-            Producto.nombre.label("nombre_producto")
-        )
-        .join(Producto, RegistroSalidaProducto.producto_id == Producto.id)
-        .order_by(RegistroSalidaProducto.fecha_salida.desc())
-        .all()
-    )
-    data = []
-    for r, nombre_producto in rows:
-        item = r.serialize()
-        item["nombre_producto"] = nombre_producto
-        data.append(item)
-    return jsonify(data)
-
-# ================== MAQUINARIA ==================
-@api.get("/maquinaria")
-@jwt_required()
-def maquinaria_list():
-    items = Maquinaria.query.order_by(Maquinaria.nombre).all()
-    return jsonify(serialize_list(items))
-
-@api.post("/maquinaria")
-@admin_required
-def maquinaria_create():
-    data = request.get_json() or {}
-    m = Maquinaria(
-        nombre=data["nombre"],
-        marca=data.get("marca"),
-        modelo=data.get("modelo"),
-        numero_serie=data.get("numero_serie"),
-        estado=(data.get("estado") or "operativa"),
-        fecha_compra=_parse_date(data.get("fecha_compra")),
-        ultima_revision=_parse_date(data.get("ultima_revision")),
-        proveedor_id=data.get("proveedor_id"),
-    )
-    db.session.add(m); db.session.commit()
-    return jsonify(m.serialize()), 201
-
-@api.put("/maquinaria/<int:mid>")
-@admin_required
-def maquinaria_update(mid):
-    m = Maquinaria.query.get_or_404(mid)
-    data = request.get_json() or {}
-    for field in ["nombre","marca","modelo","numero_serie","estado","proveedor_id"]:
-        if field in data:
-            setattr(m, field, data[field])
-    if "fecha_compra" in data:
-        m.fecha_compra = _parse_date(data["fecha_compra"])
-    if "ultima_revision" in data:
-        m.ultima_revision = _parse_date(data["ultima_revision"])
-    db.session.commit()
-    return jsonify(m.serialize())
-
-@api.delete("/maquinaria/<int:mid>")
-@admin_required
-def maquinaria_delete(mid):
-    m = Maquinaria.query.get_or_404(mid)
-    db.session.delete(m); db.session.commit()
-    return jsonify(msg="Maquina eliminada")
-
-# ================== REPORTES ==================
-@api.get("/reportes/gasto-productos")
-@jwt_required()
-def reporte_gasto_productos():
-    desde_str = request.args.get("desde")
-    hasta_str = request.args.get("hasta")
-    producto_id = request.args.get("producto_id", type=int)
-
-    try:
-        desde = datetime.strptime(desde_str, "%Y-%m-%d") if desde_str else None
-        hasta = datetime.strptime(hasta_str, "%Y-%m-%d") if hasta_str else None
-        if hasta:
-            hasta = hasta + timedelta(days=1) - timedelta(seconds=1)
-    except Exception:
-        return jsonify(msg="Parámetros de fecha inválidos. Usa YYYY-MM-DD"), 400
-
-    q = RegistroEntradaProducto.query
-    if desde:
-        q = q.filter(RegistroEntradaProducto.fecha_entrada >= desde)
-    if hasta:
-        q = q.filter(RegistroEntradaProducto.fecha_entrada <= hasta)
-    if producto_id:
-        q = q.filter(RegistroEntradaProducto.producto_id == producto_id)
-    rows = q.order_by(RegistroEntradaProducto.fecha_entrada.asc()).all()
-
-    from collections import defaultdict
-    mensual_sin = defaultdict(Decimal)
-    mensual_con = defaultdict(Decimal)
-    total_sin = Decimal("0.00")
-    total_con = Decimal("0.00")
-
-    for r in rows:
-        mes = r.fecha_entrada.strftime("%Y-%m")
-        sin = _importe_sin_iva(r)
-        con = _importe_con_iva(r)
-        mensual_sin[mes] += sin
-        mensual_con[mes] += con
-        total_sin += sin
-        total_con += con
-
-    mensual = []
-    for mes in sorted(mensual_con.keys()):
-        mensual.append({
-            "mes": mes,
-            "sin_iva": float(mensual_sin[mes].quantize(Decimal("0.01"))),
-            "con_iva": float(mensual_con[mes].quantize(Decimal("0.01")))
-        })
-
-    return jsonify({
-        "desde": desde_str,
-        "hasta": hasta_str,
-        "producto_id": producto_id,
-        "moneda": "EUR",
-        "totales": {
-            "sin_iva": float(total_sin.quantize(Decimal("0.01"))),
-            "con_iva": float(total_con.quantize(Decimal("0.01"))),
-        },
-        "mensual": mensual,
-    })
-
-@api.get("/hello")
-def hello():
-    return jsonify(msg="ok"), 200
-
-@api.post("/signup")
+# ---------- AUTH ----------
+@api.route("/signup", methods=["POST"])
 def signup():
-    try:
-        data = request.get_json() or {}
-        nombre = (data.get("nombre") or data.get("name") or "").strip()
-        email  = (data.get("email") or "").strip().lower()
-        password = data.get("password") or ""
-        rol = (data.get("rol") or data.get("role") or "empleado").strip().lower()
+    data = request.get_json() or {}
+    nombre = data.get("nombre"); email = data.get("email"); password = data.get("password")
+    rol = data.get("rol", "empleado")
+    if not all([nombre, email, password]): return jsonify({"msg": "Faltan campos"}), 400
+    if User.query.filter_by(email=email).first(): return jsonify({"msg": "Email ya existe"}), 400
 
-        if not email or not password or not nombre:
-            return jsonify(ok=False, msg="nombre, email y password son requeridos"), 400
+    u = User(nombre=nombre, email=email, rol=rol, password_hash=generate_password_hash(password))
+    db.session.add(u); db.session.commit()
+    access = create_access_token(identity=u.id, additional_claims={"rol": u.rol, "email": u.email})
+    return jsonify({"user": u.to_dict(), "token": access}), 201
 
-        if Usuario.query.filter_by(email=email).first():
-            return jsonify(ok=False, msg="El email ya existe"), 400
-
-        u = Usuario(nombre=nombre, email=email, password_hash=generate_password_hash(password), rol=rol)
-        db.session.add(u); db.session.commit()
-
-        token = create_access_token(identity=json.dumps({"id": u.id, "email": u.email, "rol": rol}))
-        resp = jsonify(ok=True, user={"id": u.id, "email": u.email, "rol": rol})
-        set_access_cookies(resp, token, max_age=60*60*8)
-        return resp, 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify(ok=False, msg=str(e)), 500
-
-
-@api.post("/auth/login_json")
+@api.route("/auth/login_json", methods=["POST"])
 def login_json():
     data = request.get_json() or {}
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    rol = (data.get("rol") or data.get("role") or "").strip().lower()
+    email = data.get("email"); password = data.get("password")
+    u = User.query.filter_by(email=email).first()
+    if not u or not check_password_hash(u.password_hash, password):
+        return jsonify({"msg": "Credenciales inválidas"}), 401
+    access = create_access_token(identity=u.id, additional_claims={"rol": u.rol, "email": u.email})
+    return jsonify({"user": u.to_dict(), "token": access}), 200
 
-    user = Usuario.query.filter_by(email=email).first()
-    if not user or not user.check_password(password):
-        return jsonify(ok=False, msg="Credenciales inválidas"), 401
+@api.route("/auth/me", methods=["GET"])
+@jwt_required()
+def me():
+    uid = get_jwt_identity()
+    u = User.query.get(uid)
+    return jsonify({"user": u.to_dict() if u else None})
 
-    if hasattr(user, "rol") and rol and user.rol.lower() != rol:
-        return jsonify(ok=False, msg="Rol incorrecto"), 401
+@api.route("/auth/logout", methods=["POST"])
+def logout():
+    # si usas tokens en header, puede ser no-op
+    return jsonify({"msg": "ok"}), 200
 
-    # sub debe ser string -> guardamos el dict como JSON string
-    token = create_access_token(identity=json.dumps({"id": user.id, "email": user.email, "rol": getattr(user, "rol", "").lower()}))
-    body = jsonify(ok=True, token=token, user={"id": user.id, "email": user.email, "rol": getattr(user, "rol", None)})
-    # Dejamos también la cookie (útil para /auth/me)
-    set_access_cookies(body, token, max_age=60*60*8)
-    return body, 200
+# ---------- USUARIOS (solo admin) ----------
+@api.route("/usuarios", methods=["GET"])
+@role_required("administrador")
+def usuarios_list():
+    return jsonify([u.to_dict() for u in User.query.order_by(User.id.desc()).all()])
+
+@api.route("/usuarios", methods=["POST"])
+@role_required("administrador")
+def usuarios_create():
+    data = request.get_json() or {}
+    nombre = data.get("nombre"); email = data.get("email"); password = data.get("password")
+    rol = data.get("rol", "empleado")
+    if not all([nombre, email, password]): return jsonify({"msg": "Faltan campos"}), 400
+    if User.query.filter_by(email=email).first(): return jsonify({"msg": "Email ya existe"}), 400
+    u = User(nombre=nombre, email=email, rol=rol, password_hash=generate_password_hash(password))
+    db.session.add(u); db.session.commit()
+    return jsonify(u.to_dict()), 201
+
+# ---------- PROVEEDORES ----------
+@api.route("/proveedores", methods=["GET"])
+@jwt_required()
+def proveedores_list():
+    return jsonify([p.to_dict() for p in Proveedor.query.order_by(Proveedor.nombre).all()])
+
+@api.route("/proveedores", methods=["POST"])
+@role_required("administrador")
+def proveedores_create():
+    data = request.get_json() or {}
+    if not data.get("nombre"): return jsonify({"msg": "Nombre requerido"}), 400
+    p = Proveedor(nombre=data["nombre"])
+    db.session.add(p); db.session.commit()
+    return jsonify(p.to_dict()), 201
+
+# ---------- PRODUCTOS ----------
+@api.route("/productos", methods=["GET"])
+@jwt_required()
+def productos_list():
+    return jsonify([p.to_dict() for p in Producto.query.order_by(Producto.nombre).all()])
+
+@api.route("/productos", methods=["POST"])
+@role_required("administrador")
+def productos_create():
+    data = request.get_json() or {}
+    p = Producto(
+        nombre=data.get("nombre"),
+        categoria=data.get("categoria"),
+        stock_minimo=int(data.get("stock_minimo") or 0),
+        stock_actual=int(data.get("stock_actual") or 0),
+    )
+    if not p.nombre: return jsonify({"msg": "Nombre requerido"}), 400
+    db.session.add(p); db.session.commit()
+    return jsonify(p.to_dict()), 201
+
+@api.route("/productos/<int:pid>", methods=["PUT"])
+@role_required("administrador")
+def productos_update(pid):
+    p = Producto.query.get_or_404(pid)
+    data = request.get_json() or {}
+    p.nombre = data.get("nombre", p.nombre)
+    p.categoria = data.get("categoria", p.categoria)
+    p.stock_minimo = int(data.get("stock_minimo") or p.stock_minimo)
+    db.session.commit()
+    return jsonify(p.to_dict())
+
+@api.route("/productos/<int:pid>", methods=["DELETE"])
+@role_required("administrador")
+def productos_delete(pid):
+    p = Producto.query.get_or_404(pid)
+    db.session.delete(p); db.session.commit()
+    return jsonify({"msg": "deleted"})
+
+# ---------- ENTRADAS (suma stock, admin) ----------
+@api.route("/registro-entrada", methods=["POST"])
+@role_required("administrador")
+def registrar_entrada():
+    data = request.get_json() or {}
+    producto_id = data.get("producto_id"); proveedor_id = data.get("proveedor_id")
+    cantidad = int(data.get("cantidad") or 0)
+    if not producto_id or cantidad <= 0: return jsonify({"msg": "Datos inválidos"}), 400
+
+    # transacción: bloquea y suma stock
+    with db.session.begin():
+        prod = db.session.query(Producto).with_for_update().get(producto_id)
+        if not prod: return jsonify({"msg": "Producto no existe"}), 404
+        prod.stock_actual = (prod.stock_actual or 0) + cantidad
+
+        ent = Entrada(
+            producto_id=producto_id, proveedor_id=proveedor_id, cantidad=cantidad,
+            numero_albaran=data.get("numero_albaran"),
+            precio_sin_iva=data.get("precio_sin_iva"),
+            porcentaje_iva=data.get("porcentaje_iva"),
+            valor_iva=data.get("valor_iva"),
+            precio_con_iva=data.get("precio_con_iva"),
+        )
+        db.session.add(ent)
+
+    return jsonify({"entrada_id": ent.id, "producto": prod.to_dict()}), 201
+
+@api.route("/registro-entrada", methods=["GET"])
+@jwt_required()
+def entradas_list():
+    desde = request.args.get("desde"); hasta = request.args.get("hasta"); proveedor_id = request.args.get("proveedor_id")
+    q = Entrada.query
+    if proveedor_id: q = q.filter(Entrada.proveedor_id == int(proveedor_id))
+    if desde: q = q.filter(Entrada.fecha >= f"{desde} 00:00:00")
+    if hasta: q = q.filter(Entrada.fecha <= f"{hasta} 23:59:59")
+    q = q.order_by(Entrada.fecha.desc())
+    data = []
+    for e in q.all():
+        data.append({
+            "id": e.id, "fecha": e.fecha.isoformat(), "cantidad": e.cantidad,
+            "numero_albaran": e.numero_albaran,
+            "precio_sin_iva": e.precio_sin_iva, "porcentaje_iva": e.porcentaje_iva,
+            "valor_iva": e.valor_iva, "precio_con_iva": e.precio_con_iva,
+            "producto": Producto.query.get(e.producto_id).to_dict() if e.producto_id else None,
+            "proveedor": Proveedor.query.get(e.proveedor_id).to_dict() if e.proveedor_id else None,
+        })
+    return jsonify(data)
+
+# ---------- SALIDAS (resta stock atómico, admin/empleado) ----------
+@api.route("/registro-salida", methods=["POST"])
+@role_required("administrador", "empleado")
+def registrar_salida():
+    data = request.get_json() or {}
+    producto_id = data.get("producto_id")
+    cantidad = int(data.get("cantidad") or 0)
+    observaciones = data.get("observaciones", "")
+    if not producto_id or cantidad <= 0:
+        return jsonify({"msg": "Datos inválidos"}), 400
+
+    uid = get_jwt_identity()
+
+    with db.session.begin():
+        prod = db.session.query(Producto).with_for_update().get(producto_id)
+        if not prod: return jsonify({"msg": "Producto no existe"}), 404
+        if (prod.stock_actual or 0) < cantidad:
+            return jsonify({"msg": "Stock insuficiente"}), 400
+        prod.stock_actual = (prod.stock_actual or 0) - cantidad
+
+        sal = Salida(producto_id=producto_id, usuario_id=uid, cantidad=cantidad, observaciones=observaciones)
+        db.session.add(sal)
+
+    return jsonify({"salida_id": sal.id, "producto": prod.to_dict()}), 201
+
+@api.route("/registro-salida", methods=["GET"])
+@jwt_required()
+def salidas_list():
+    desde = request.args.get("desde"); hasta = request.args.get("hasta")
+    q = Salida.query
+    if desde: q = q.filter(Salida.fecha >= f"{desde} 00:00:00")
+    if hasta: q = q.filter(Salida.fecha <= f"{hasta} 23:59:59")
+    q = q.order_by(Salida.fecha.desc())
+    data = []
+    for s in q.all():
+        data.append({
+            **s.to_dict(),
+            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None
+        })
+    return jsonify(data)
+
+# Informe alternativo que usa tu frontend (/api/salidas)
+@api.route("/salidas", methods=["GET"])
+@jwt_required()
+def salidas_historial():
+    desde = request.args.get("desde"); hasta = request.args.get("hasta"); producto_id = request.args.get("producto_id")
+    q = Salida.query
+    if producto_id: q = q.filter(Salida.producto_id == int(producto_id))
+    if desde: q = q.filter(Salida.fecha >= f"{desde} 00:00:00")
+    if hasta: q = q.filter(Salida.fecha <= f"{hasta} 23:59:59")
+    q = q.order_by(Salida.fecha.desc())
+    data = []
+    for s in q.all():
+        data.append({
+            **s.to_dict(),
+            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None
+        })
+    return jsonify(data)
+
+# ping
+@api.route("/hello", methods=["GET"])
+def hello():
+    return jsonify({"msg": "Hello SpecialWash!"})
