@@ -7,18 +7,42 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    rol = db.Column(db.String(32), default="empleado", nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    rol = db.Column(db.String(20), nullable=False, default="empleado")  # "administrador" | "empleado"
+    activo = db.Column(db.Boolean, default=True, nullable=False)  # <--- NUEVO
 
     def to_dict(self):
-        return {"id": self.id, "nombre": self.nombre, "email": self.email, "rol": self.rol}
+        return {
+            "id": self.id,
+            "nombre": self.nombre,
+            "email": self.email,
+            "rol": self.rol,
+            "activo": self.activo,  # <--- NUEVO
+        }
 
+
+# src/api/models.py (solo la parte de Proveedor)
 class Proveedor(db.Model):
+    __tablename__ = "proveedor"
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
 
+    telefono = db.Column(db.String(50))
+    email = db.Column(db.String(120))
+    direccion = db.Column(db.String(255))
+    contacto = db.Column(db.String(120))
+    notas = db.Column(db.Text)
+
     def to_dict(self):
-        return {"id": self.id, "nombre": self.nombre}
+        return {
+            "id": self.id,
+            "nombre": self.nombre,
+            "telefono": self.telefono,
+            "email": self.email,
+            "direccion": self.direccion,
+            "contacto": self.contacto,
+            "notas": self.notas,
+        }
 
 class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,30 +69,52 @@ class Entrada(db.Model):
     valor_iva = db.Column(db.Float)
     precio_con_iva = db.Column(db.Float)
 
+# models.py
+from datetime import datetime
+
 class Salida(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    producto_id = db.Column(db.Integer, db.ForeignKey("producto.id"), nullable=False)
-    usuario_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    producto_id = db.Column(db.Integer, db.ForeignKey('producto.id'))
+    usuario_id  = db.Column(db.Integer, db.ForeignKey('user.id'))
     cantidad = db.Column(db.Integer, nullable=False)
     observaciones = db.Column(db.String(255))
 
     def to_dict(self):
         return {
-            "id": self.id, "producto_id": self.producto_id, "usuario_id": self.usuario_id,
-            "fecha": self.fecha.isoformat(), "cantidad": self.cantidad, "observaciones": self.observaciones
+            "id": self.id,
+            "fecha": self.fecha.isoformat() if self.fecha else None,
+            "producto_id": self.producto_id,
+            "usuario_id": self.usuario_id,
+            "cantidad": self.cantidad,
+            "observaciones": self.observaciones,
         }
 
+
 class Maquinaria(db.Model):
+    __tablename__ = "maquinaria"
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
-    descripcion = db.Column(db.String(255))
-    activo = db.Column(db.Boolean, default=True)
+    tipo = db.Column(db.String(80))
+    marca = db.Column(db.String(80))
+    modelo = db.Column(db.String(80))
+    numero_serie = db.Column(db.String(120))
+    ubicacion = db.Column(db.String(120))
+    estado = db.Column(db.String(50))
+    fecha_compra = db.Column(db.Date)
+    notas = db.Column(db.Text)
 
     def to_dict(self):
         return {
             "id": self.id,
             "nombre": self.nombre,
-            "descripcion": self.descripcion,
-            "activo": self.activo,
+            "tipo": self.tipo,
+            "marca": self.marca,
+            "modelo": self.modelo,
+            "numero_serie": self.numero_serie,
+            "ubicacion": self.ubicacion,
+            "estado": self.estado,
+            "fecha_compra": self.fecha_compra.isoformat() if self.fecha_compra else None,
+            "notas": self.notas,
         }
+

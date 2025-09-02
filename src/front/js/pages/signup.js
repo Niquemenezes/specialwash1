@@ -1,52 +1,63 @@
-import React, { useState } from "react";
-import API_URL from "../component/backendURL";
+import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Context } from "../store/appContext";
 
 export default function Signup() {
-  const [form, setForm] = useState({ nombre:"", email:"", password:"", rol:"admin" });
-  const [msg, setMsg] = useState("");
+  const { actions } = useContext(Context);
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rol, setRol] = useState("empleado"); // o "administrador" si quieres
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
+  const navigate = useNavigate();
 
-  const onChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setErr(""); setOk(false);
 
-  const onSubmit = async e => {
-    e.preventDefault(); setMsg("");
-    try{
-      const res = await fetch(`${API_URL}/api/signup`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.msg || data.error || "Error en signup");
-      setMsg("Usuario creado. Ya puedes iniciar sesión.");
-    }catch(err){ setMsg(err.message); }
+    const res = await actions.signup(nombre, email, password, rol);
+    if (!res?.ok) {
+      setErr(res?.error || "No se pudo crear el usuario");
+      return;
+    }
+
+    setOk(true);
+
+    // ⬇️ Ir al login
+    navigate("/login", { replace: true });
   };
 
   return (
-    <div className="container py-4">
-      <h2>Registro (Signup)</h2>
-      <form onSubmit={onSubmit} className="card p-3">
-        <div className="mb-2">
-          <label>Nombre</label>
-          <input className="form-control" name="nombre" value={form.nombre} onChange={onChange} required />
+    <div className="container mt-4" style={{ maxWidth: 520 }}>
+      <h2>Crear cuenta</h2>
+      {err && <div className="alert alert-danger">{err}</div>}
+      {ok && <div className="alert alert-success">Cuenta creada. Redirigiendo al login…</div>}
+
+      <form onSubmit={onSubmit} className="row g-3">
+        <div className="col-12 col-md-6">
+          <label className="form-label">Nombre</label>
+          <input className="form-control" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
         </div>
-        <div className="mb-2">
-          <label>Email</label>
-          <input className="form-control" name="email" type="email" value={form.email} onChange={onChange} required />
-        </div>
-        <div className="mb-2">
-          <label>Password</label>
-          <input className="form-control" name="password" type="password" value={form.password} onChange={onChange} required />
-        </div>
-        <div className="mb-3">
-          <label>Rol</label>
-          <select className="form-select" name="rol" value={form.rol} onChange={onChange}>
-            <option value="admin">admin</option>
-            <option value="empleado">empleado</option>
+        <div className="col-12 col-md-6">
+          <label className="form-label">Rol</label>
+          <select className="form-select" value={rol} onChange={(e) => setRol(e.target.value)}>
+            <option value="empleado">Empleado</option>
+            <option value="administrador">Administrador</option>
           </select>
         </div>
-        <button className="btn btn-dark">Crear cuenta</button>
+        <div className="col-12">
+          <label className="form-label">Email</label>
+          <input className="form-control" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="col-12">
+          <label className="form-label">Contraseña</label>
+          <input type="password" className="form-control" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
+        <div className="col-12">
+          <button className="btn btn-primary w-100">Crear cuenta</button>
+        </div>
       </form>
-      {msg && <p className="mt-3">{msg}</p>}
     </div>
   );
 }

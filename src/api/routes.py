@@ -6,23 +6,42 @@ from flask_jwt_extended import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
-from .models import db, User, Producto, Proveedor, Entrada, Salida
+from datetime import datetime
+
+from .models import db, User, Producto, Proveedor, Entrada, Salida, Maquinaria
 
 api = Blueprint("api", __name__)
 
+def _parse_date(s):
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except Exception:
+            pass
+    return None
 # ---------- helper de roles ----------
+def _normalize_role(r):
+    r = (r or "").lower().strip()
+    if r in ("admin", "administrator"): return "administrador"
+    if r in ("employee", "staff"): return "empleado"
+    return r
+
 def role_required(*roles):
     def outer(fn):
         @wraps(fn)
         @jwt_required()
         def wrapper(*args, **kwargs):
             claims = get_jwt() or {}
-            rol = claims.get("rol")
-            if rol not in roles:
+            rol = _normalize_role(claims.get("rol"))
+            allowed = {_normalize_role(x) for x in roles}
+            if rol not in allowed:
                 return jsonify({"msg": "Forbidden"}), 403
             return fn(*args, **kwargs)
         return wrapper
     return outer
+
 
 # ---------- AUTH ----------
 @api.route("/signup", methods=["POST"])
@@ -35,7 +54,7 @@ def signup():
 
     u = User(nombre=nombre, email=email, rol=rol, password_hash=generate_password_hash(password))
     db.session.add(u); db.session.commit()
-    access = create_access_token(identity=u.id, additional_claims={"rol": u.rol, "email": u.email})
+    access = create_access_token(identity=str(u.id), additional_claims={"rol": u.rol, "email": u.email})
     return jsonify({"user": u.to_dict(), "token": access}), 201
 
 @api.route("/auth/login_json", methods=["POST"])
@@ -45,14 +64,14 @@ def login_json():
     u = User.query.filter_by(email=email).first()
     if not u or not check_password_hash(u.password_hash, password):
         return jsonify({"msg": "Credenciales inválidas"}), 401
-    access = create_access_token(identity=u.id, additional_claims={"rol": u.rol, "email": u.email})
+    access = create_access_token(identity=str(u.id), additional_claims={"rol": u.rol, "email": u.email})
     return jsonify({"user": u.to_dict(), "token": access}), 200
 
 @api.route("/auth/me", methods=["GET"])
 @jwt_required()
 def me():
     uid = get_jwt_identity()
-    u = User.query.get(uid)
+    u = User.query.get(int(uid))  # identity ahora es string
     return jsonify({"user": u.to_dict() if u else None})
 
 @api.route("/auth/logout", methods=["POST"])
@@ -70,13 +89,61 @@ def usuarios_list():
 @role_required("administrador")
 def usuarios_create():
     data = request.get_json() or {}
-    nombre = data.get("nombre"); email = data.get("email"); password = data.get("password")
-    rol = data.get("rol", "empleado")
-    if not all([nombre, email, password]): return jsonify({"msg": "Faltan campos"}), 400
-    if User.query.filter_by(email=email).first(): return jsonify({"msg": "Email ya existe"}), 400
-    u = User(nombre=nombre, email=email, rol=rol, password_hash=generate_password_hash(password))
-    db.session.add(u); db.session.commit()
+    nombre = (data.get("nombre") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password")
+    rol = (data.get("rol") or "empleado").strip().lower()
+    activo = bool(data.get("activo", True))
+
+    if not nombre or not email or not password:
+        return jsonify({"msg": "Faltan campos"}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"msg": "Email ya existe"}), 400
+
+    u = User(
+        nombre=nombre,
+        email=email,
+        rol=rol,
+        activo=activo if hasattr(User, "activo") else True,  # si tu modelo lo tiene
+        password_hash=generate_password_hash(password),
+    )
+    db.session.add(u)
+    db.session.commit()
     return jsonify(u.to_dict()), 201
+
+@api.route("/usuarios/<int:uid>", methods=["PUT"])
+@role_required("administrador")
+def usuarios_update(uid):
+    u = User.query.get_or_404(uid)
+    data = request.get_json() or {}
+
+    if "nombre" in data:
+        u.nombre = (data.get("nombre") or "").strip() or u.nombre
+    if "email" in data:
+        new_email = (data.get("email") or "").strip().lower()
+        if not new_email:
+            return jsonify({"msg": "Email requerido"}), 400
+        if new_email != u.email and User.query.filter_by(email=new_email).first():
+            return jsonify({"msg": "Email ya existe"}), 400
+        u.email = new_email
+    if "rol" in data:
+        u.rol = (data.get("rol") or "empleado").strip().lower()
+    if "activo" in data and hasattr(u, "activo"):
+        u.activo = bool(data.get("activo"))
+    if data.get("password"):
+        u.password_hash = generate_password_hash(data["password"])
+
+    db.session.commit()
+    return jsonify(u.to_dict()), 200
+
+@api.route("/usuarios/<int:uid>", methods=["DELETE"])
+@role_required("administrador")
+def usuarios_delete(uid):
+    u = User.query.get_or_404(uid)
+    db.session.delete(u)
+    db.session.commit()
+    return jsonify({"msg": "deleted"}), 200
+
 
 # ---------- PROVEEDORES ----------
 @api.route("/proveedores", methods=["GET"])
@@ -88,10 +155,52 @@ def proveedores_list():
 @role_required("administrador")
 def proveedores_create():
     data = request.get_json() or {}
-    if not data.get("nombre"): return jsonify({"msg": "Nombre requerido"}), 400
-    p = Proveedor(nombre=data["nombre"])
-    db.session.add(p); db.session.commit()
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        return jsonify({"msg": "Nombre requerido"}), 400
+
+    p = Proveedor(
+        nombre=nombre,
+        telefono=(data.get("telefono") or "").strip() or None,
+        email=(data.get("email") or "").strip() or None,
+        direccion=(data.get("direccion") or "").strip() or None,
+        contacto=(data.get("contacto") or "").strip() or None,
+        notas=(data.get("notas") or "").strip() or None,
+    )
+    db.session.add(p)
+    db.session.commit()
     return jsonify(p.to_dict()), 201
+
+@api.route("/proveedores/<int:pid>", methods=["PUT"])
+@role_required("administrador")
+def proveedores_update(pid):
+    p = Proveedor.query.get_or_404(pid)
+    data = request.get_json() or {}
+
+    if "nombre" in data:
+        nombre = (data.get("nombre") or "").strip()
+        if not nombre:
+            return jsonify({"msg": "Nombre requerido"}), 400
+        p.nombre = nombre
+
+    # Campos opcionales
+    for k in ("telefono", "email", "direccion", "contacto", "notas"):
+        if k in data:
+            v = (data.get(k) or "").strip()
+            setattr(p, k, v or None)
+
+    db.session.commit()
+    return jsonify(p.to_dict()), 200
+
+@api.route("/proveedores/<int:pid>", methods=["DELETE"])
+@role_required("administrador")
+def proveedores_delete(pid):
+    p = Proveedor.query.get_or_404(pid)
+    db.session.delete(p)
+    db.session.commit()
+    return jsonify({"msg": "deleted"}), 200
+
+
 
 # ---------- PRODUCTOS ----------
 @api.route("/productos", methods=["GET"])
@@ -180,47 +289,80 @@ def entradas_list():
     return jsonify(data)
 
 # ---------- SALIDAS (resta stock atómico, admin/empleado) ----------
+# --- al inicio del archivo ---
+from .models import db, User, Producto, Proveedor, Entrada, Salida
+#                              ^^^ añade User si no estaba
+
+# ---------- SALIDAS (resta stock atómico, admin/empleado) ----------
+# src/api/routes.py (fragmento)
+from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
+from .models import db, User, Producto, Salida
+
 @api.route("/registro-salida", methods=["POST"])
 @role_required("administrador", "empleado")
 def registrar_salida():
     data = request.get_json() or {}
-    producto_id = data.get("producto_id")
-    cantidad = int(data.get("cantidad") or 0)
+    producto_id   = data.get("producto_id")
+    cantidad      = int(data.get("cantidad") or 0)
     observaciones = data.get("observaciones", "")
+
     if not producto_id or cantidad <= 0:
         return jsonify({"msg": "Datos inválidos"}), 400
 
-    uid = get_jwt_identity()
+    claims = get_jwt() or {}
+    rol = claims.get("rol")
+    uid_token = int(get_jwt_identity())
+
+    # por defecto, el del token
+    uid = uid_token
+
+    # si es admin y envía usuario_id, lo usamos (validando que exista)
+    usuario_id_req = data.get("usuario_id")
+    if usuario_id_req and rol == "administrador":
+        u_check = User.query.get(int(usuario_id_req))
+        if not u_check:
+            return jsonify({"msg": "Usuario no existe"}), 404
+        uid = u_check.id
 
     with db.session.begin():
         prod = db.session.query(Producto).with_for_update().get(producto_id)
-        if not prod: return jsonify({"msg": "Producto no existe"}), 404
+        if not prod:
+            return jsonify({"msg": "Producto no existe"}), 404
         if (prod.stock_actual or 0) < cantidad:
             return jsonify({"msg": "Stock insuficiente"}), 400
-        prod.stock_actual = (prod.stock_actual or 0) - cantidad
 
-        sal = Salida(producto_id=producto_id, usuario_id=uid, cantidad=cantidad, observaciones=observaciones)
+        prod.stock_actual = (prod.stock_actual or 0) - cantidad
+        sal = Salida(
+            producto_id=producto_id,
+            usuario_id=uid,
+            cantidad=cantidad,
+            observaciones=observaciones
+        )
         db.session.add(sal)
 
-    return jsonify({"salida_id": sal.id, "producto": prod.to_dict()}), 201
+    u = User.query.get(uid)
+    return jsonify({
+        "salida_id": sal.id,
+        "producto": prod.to_dict(),
+        "usuario_nombre": u.nombre if u else None
+    }), 201
+
 
 @api.route("/registro-salida", methods=["GET"])
 @jwt_required()
 def salidas_list():
-    desde = request.args.get("desde"); hasta = request.args.get("hasta")
-    q = Salida.query
-    if desde: q = q.filter(Salida.fecha >= f"{desde} 00:00:00")
-    if hasta: q = q.filter(Salida.fecha <= f"{hasta} 23:59:59")
-    q = q.order_by(Salida.fecha.desc())
+    q = Salida.query.order_by(Salida.fecha.desc())
     data = []
     for s in q.all():
         data.append({
-            **s.to_dict(),
-            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None
+            **s.to_dict(),                     # incluye fecha, usuario_id, etc.
+            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None,
+            "usuario_nombre":  User.query.get(s.usuario_id).nombre  if s.usuario_id  else None,
         })
     return jsonify(data)
 
-# Informe alternativo que usa tu frontend (/api/salidas)
+
+
 @api.route("/salidas", methods=["GET"])
 @jwt_required()
 def salidas_historial():
@@ -234,11 +376,74 @@ def salidas_historial():
     for s in q.all():
         data.append({
             **s.to_dict(),
-            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None
+            "producto_nombre": Producto.query.get(s.producto_id).nombre if s.producto_id else None,
+            "usuario_nombre":  User.query.get(s.usuario_id).nombre  if s.usuario_id  else None,
         })
     return jsonify(data)
+
 
 # ping
 @api.route("/hello", methods=["GET"])
 def hello():
     return jsonify({"msg": "Hello SpecialWash!"})
+
+# ---------- MAQUINARIA ----------
+@api.route("/maquinaria", methods=["GET"])
+@jwt_required()
+def maquinaria_list():
+    q = Maquinaria.query.order_by(Maquinaria.id.desc()).all()
+    return jsonify([m.to_dict() for m in q])
+
+@api.route("/maquinaria", methods=["POST"])
+@role_required("administrador")
+def maquinaria_create():
+    data = request.get_json() or {}
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        return jsonify({"msg": "Nombre requerido"}), 400
+
+    m = Maquinaria(
+        nombre=nombre,
+        tipo=(data.get("tipo") or "").strip() or None,
+        marca=(data.get("marca") or "").strip() or None,
+        modelo=(data.get("modelo") or "").strip() or None,
+        numero_serie=(data.get("numero_serie") or data.get("serie") or "").strip() or None,
+        ubicacion=(data.get("ubicacion") or "").strip() or None,
+        estado=(data.get("estado") or "").strip() or None,
+        fecha_compra=_parse_date(data.get("fecha_compra")),
+        notas=(data.get("notas") or "").strip() or None,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return jsonify(m.to_dict()), 201
+
+@api.route("/maquinaria/<int:mid>", methods=["PUT"])
+@role_required("administrador")
+def maquinaria_update(mid):
+    m = Maquinaria.query.get_or_404(mid)
+    data = request.get_json() or {}
+
+    if "nombre" in data:
+        nombre = (data.get("nombre") or "").strip()
+        if not nombre:
+            return jsonify({"msg": "Nombre requerido"}), 400
+        m.nombre = nombre
+
+    for k in ("tipo", "marca", "modelo", "numero_serie", "ubicacion", "estado", "notas"):
+        if k in data:
+            v = (data.get(k) or "").strip()
+            setattr(m, k, v or None)
+
+    if "fecha_compra" in data:
+        m.fecha_compra = _parse_date(data.get("fecha_compra"))
+
+    db.session.commit()
+    return jsonify(m.to_dict()), 200
+
+@api.route("/maquinaria/<int:mid>", methods=["DELETE"])
+@role_required("administrador")
+def maquinaria_delete(mid):
+    m = Maquinaria.query.get_or_404(mid)
+    db.session.delete(m)
+    db.session.commit()
+    return jsonify({"msg": "deleted"}), 200

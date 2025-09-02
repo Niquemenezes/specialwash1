@@ -1,9 +1,17 @@
-// src/front/js/store/flux.js — SpecialWash (roles + módulos)
+// src/front/js/store/flux.js — SpecialWash (roles + módulos + candados anti-bucle)
 
 const getState = ({ getStore, getActions, setStore }) => {
   const API = process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:3001";
 
-  // ========= Helpers =========
+  // ====== Candados simples para evitar múltiples fetch en StrictMode/re-montajes ======
+  let _loadingUsuarios = false;
+  let _loadingProveedores = false;
+  let _loadingProductos = false;
+  let _loadingMaquinaria = false;
+  let _loadingEntradas = false;
+  let _loadingSalidas = false;
+
+  // ========= Helper de fetch =========
   async function apiFetch(
     path,
     {
@@ -38,7 +46,7 @@ const getState = ({ getStore, getActions, setStore }) => {
 
     const raw = await resp.text();
     let data = raw;
-    try { data = raw ? JSON.parse(raw) : null; } catch { }
+    try { data = raw ? JSON.parse(raw) : null; } catch { /* respuesta no-JSON */ }
 
     if (!resp.ok) {
       const msg = (data && (data.msg || data.message)) || `HTTP ${resp.status}`;
@@ -47,6 +55,7 @@ const getState = ({ getStore, getActions, setStore }) => {
     return data;
   }
 
+  // Guarda token + rol de forma consistente
   const saveTokenAndUser = (data) => {
     const t = data?.token || data?.access_token || null;
     if (t) {
@@ -55,7 +64,7 @@ const getState = ({ getStore, getActions, setStore }) => {
     }
     const user = data?.user || null;
     if (user) {
-      const rol = user.rol || user.role || "empleado";
+      const rol = (user.rol || user.role || "empleado").toLowerCase();
       if (typeof sessionStorage !== "undefined") sessionStorage.setItem("rol", rol);
       if (typeof localStorage !== "undefined") localStorage.setItem("rol", rol);
     }
@@ -89,7 +98,7 @@ const getState = ({ getStore, getActions, setStore }) => {
     },
 
     actions: {
-      // ===== Demo
+      // ===== Demo / ping
       getMessage: async () => {
         try {
           const data = await apiFetch("/api/hello", { auth: false });
@@ -99,19 +108,21 @@ const getState = ({ getStore, getActions, setStore }) => {
       },
 
       // ===== AUTH
-      signup: async (nombre, email, password, rol = "administrador") => {
-        try {
-          const data = await apiFetch("/api/signup", {
-            method: "POST",
-            auth: false,
-            body: { nombre, email, password, rol },
-          });
-          const { token, user } = saveTokenAndUser(data);
-          setStore({ token, auth: true, user: user || { email, rol } });
-          return { ok: true };
-        } catch (err) { console.error("signup:", err); return { ok: false, error: err.message }; }
-      },
-
+      signup: async (nombre, email, password, rol = "empleado") => {
+  try {
+    await apiFetch("/api/signup", {
+      method: "POST",
+      auth: false,
+      body: { nombre, email, password, rol },
+    });
+    // No guardamos token ni auth aquí a propósito
+    return { ok: true };
+  } catch (err) {
+    console.error("signup:", err);
+    return { ok: false, error: err.message };
+  }
+},
+      // (opcional) loginCookie si usas cookie-only
       loginCookie: async (email, password) => {
         try {
           const data = await apiFetch("/api/auth/login", {
@@ -122,23 +133,25 @@ const getState = ({ getStore, getActions, setStore }) => {
           const { token, user } = saveTokenAndUser(data);
           setStore({ token, auth: true, user });
           return { ok: true };
-        } catch (err) { console.error("loginCookie:", err); setStore({ auth: false }); return { ok: false, error: err.message }; }
+        } catch (err) {
+          console.error("loginCookie:", err);
+          setStore({ auth: false });
+          return { ok: false, error: err.message };
+        }
       },
 
+      // login por JSON (usa Authorization en headers después)
       login: async (email, password, rol = "administrador") => {
         try {
           const data = await apiFetch("/api/auth/login_json", {
             method: "POST",
             auth: false,
+            // el backend no necesita rol aquí, pero no molesta
             body: { email, password, rol },
           });
-          if (data?.token || data?.access_token) {
-            const t = data.token || data.access_token;
-            localStorage.setItem("token", t);
-            setStore({ token: t });
-          }
-          setStore({ auth: true, user: data?.user || null });
-          return { ok: true, user: data?.user || null, token: data?.token || data?.access_token || null };
+          const { token, user } = saveTokenAndUser(data);
+          setStore({ token, auth: true, user });
+          return { ok: true, user, token };
         } catch (err) {
           console.error("login:", err);
           setStore({ auth: false });
@@ -151,7 +164,7 @@ const getState = ({ getStore, getActions, setStore }) => {
           const data = await apiFetch("/api/auth/me");
           const user = data?.user || null;
           if (user) {
-            const rol = user.rol || user.role || "empleado";
+            const rol = (user.rol || user.role || "empleado").toLowerCase();
             sessionStorage.setItem("rol", rol);
             localStorage.setItem("rol", rol);
           }
@@ -161,7 +174,7 @@ const getState = ({ getStore, getActions, setStore }) => {
       },
 
       logout: async () => {
-        try { await apiFetch("/api/auth/logout", { method: "POST", auth: false }); } catch { }
+        try { await apiFetch("/api/auth/logout", { method: "POST", auth: false }); } catch { /* no-op */ }
         localStorage.removeItem("token"); localStorage.removeItem("rol");
         sessionStorage.removeItem("token"); sessionStorage.removeItem("rol");
         setStore({ auth: false, token: null, user: null });
@@ -169,11 +182,18 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       // ===== USUARIOS (ADMIN)
       getUsuarios: async () => {
+        if (_loadingUsuarios) return getStore().usuarios;
+        _loadingUsuarios = true;
         try {
-          const data = await apiFetch("/api/usuarios");
-          setStore({ usuarios: Array.isArray(data) ? data : data?.items || [] });
+          const data = await apiFetch("/api/usuarios", { method: "GET" });
+          setStore({ usuarios: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().usuarios;
-        } catch (err) { console.error("getUsuarios:", err); return []; }
+        } catch (e) {
+          console.error("getUsuarios:", e);
+          return [];
+        } finally {
+          _loadingUsuarios = false;
+        }
       },
 
       createUsuario: async (usuario) => {
@@ -205,11 +225,18 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       // ===== PROVEEDORES
       getProveedores: async () => {
+        if (_loadingProveedores) return getStore().proveedores;
+        _loadingProveedores = true;
         try {
           const data = await apiFetch("/api/proveedores");
-          setStore({ proveedores: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ proveedores: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().proveedores;
-        } catch (err) { console.error("getProveedores:", err); return []; }
+        } catch (err) {
+          console.error("getProveedores:", err);
+          return [];
+        } finally {
+          _loadingProveedores = false;
+        }
       },
 
       createProveedor: async (proveedor) => {
@@ -241,11 +268,18 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       // ===== PRODUCTOS
       getProductos: async () => {
+        if (_loadingProductos) return getStore().productos;
+        _loadingProductos = true;
         try {
           const data = await apiFetch("/api/productos");
-          setStore({ productos: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().productos;
-        } catch (err) { console.error("getProductos:", err); return []; }
+        } catch (err) {
+          console.error("getProductos:", err);
+          return [];
+        } finally {
+          _loadingProductos = false;
+        }
       },
 
       getProductosCatalogo: async () => {
@@ -288,15 +322,22 @@ const getState = ({ getStore, getActions, setStore }) => {
       },
 
       getEntradas: async (params = {}) => {
+        if (_loadingEntradas) return getStore().entradas;
+        _loadingEntradas = true;
         try {
           const query = new URLSearchParams();
           Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null && v !== "") query.append(k, v);
           });
           const data = await apiFetch(`/api/registro-entrada${query.toString() ? `?${query}` : ""}`);
-          setStore({ entradas: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ entradas: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().entradas;
-        } catch (err) { console.error("getEntradas:", err); return []; }
+        } catch (err) {
+          console.error("getEntradas:", err);
+          return [];
+        } finally {
+          _loadingEntradas = false;
+        }
       },
 
       getResumenEntradas: async ({ desde, hasta, proveedorId } = {}) => {
@@ -306,9 +347,13 @@ const getState = ({ getStore, getActions, setStore }) => {
           if (hasta) params.append("hasta", hasta);
           if (proveedorId) params.append("proveedor_id", proveedorId);
           const data = await apiFetch(`/api/registro-entrada${params.toString() ? `?${params}` : ""}`);
-          setStore({ resumenEntradas: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ resumenEntradas: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().resumenEntradas;
-        } catch (err) { console.error("getResumenEntradas:", err); setStore({ resumenEntradas: [] }); return []; }
+        } catch (err) {
+          console.error("getResumenEntradas:", err);
+          setStore({ resumenEntradas: [] });
+          return [];
+        }
       },
 
       // ===== SALIDAS (admin/empleado)
@@ -320,15 +365,22 @@ const getState = ({ getStore, getActions, setStore }) => {
       },
 
       getSalidas: async (params = {}) => {
+        if (_loadingSalidas) return getStore().salidas;
+        _loadingSalidas = true;
         try {
           const query = new URLSearchParams();
           Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null && v !== "") query.append(k, v);
           });
           const data = await apiFetch(`/api/registro-salida${query.toString() ? `?${query}` : ""}`);
-          setStore({ salidas: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ salidas: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().salidas;
-        } catch (err) { console.error("getSalidas:", err); return []; }
+        } catch (err) {
+          console.error("getSalidas:", err);
+          return [];
+        } finally {
+          _loadingSalidas = false;
+        }
       },
 
       getHistorialSalidas: async ({ desde, hasta, productoId } = {}) => {
@@ -338,18 +390,29 @@ const getState = ({ getStore, getActions, setStore }) => {
           if (hasta) params.append("hasta", hasta);
           if (productoId) params.append("producto_id", productoId);
           const data = await apiFetch(`/api/salidas${params.toString() ? `?${params}` : ""}`);
-          setStore({ historialSalidas: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ historialSalidas: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().historialSalidas;
-        } catch (err) { console.error("getHistorialSalidas:", err); setStore({ historialSalidas: [] }); return []; }
+        } catch (err) {
+          console.error("getHistorialSalidas:", err);
+          setStore({ historialSalidas: [] });
+          return [];
+        }
       },
 
       // ===== MAQUINARIA
       getMaquinaria: async () => {
+        if (_loadingMaquinaria) return getStore().maquinaria;
+        _loadingMaquinaria = true;
         try {
           const data = await apiFetch("/api/maquinaria");
-          setStore({ maquinaria: Array.isArray(data) ? data : data?.items || [] });
+          setStore({ maquinaria: Array.isArray(data) ? data : (data?.items || []) });
           return getStore().maquinaria;
-        } catch (err) { console.error("getMaquinaria:", err); return []; }
+        } catch (err) {
+          console.error("getMaquinaria:", err);
+          return [];
+        } finally {
+          _loadingMaquinaria = false;
+        }
       },
 
       createMaquina: async (maquina) => {
