@@ -123,3 +123,4 @@ if __name__ == "__main__":
 
 from api.commands import setup_commands
 setup_commands(app)
+print(">>> Using DB:", app.config["SQLALCHEMY_DATABASE_URI"], flush=True)

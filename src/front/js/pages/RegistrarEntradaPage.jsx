@@ -1,8 +1,21 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../store/appContext";
+import ProductoFormModal from "./ProductoFormModal.jsx";
+
+const fmtDateTime = (s) => {
+  if (!s) return "-";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? "-" : d.toLocaleString();
+};
 
 const RegistrarEntradaPage = () => {
   const { store, actions } = useContext(Context);
+
+  // --- filtro/buscador + selección
+  const [filtro, setFiltro] = useState("");
+  const [productoId, setProductoId] = useState("");
+
+  // --- formulario
   const [form, setForm] = useState({
     producto_id: "",
     proveedor_id: "",
@@ -18,10 +31,39 @@ const RegistrarEntradaPage = () => {
   });
   const [saving, setSaving] = useState(false);
 
+  // --- modal “nuevo producto”
+  const [showNuevo, setShowNuevo] = useState(false);
+
   useEffect(() => {
     actions.getProductos();
     actions.getProveedores();
+    actions.getEntradas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // lista filtrada
+  const productosFiltrados = useMemo(() => {
+    const term = filtro.trim().toLowerCase();
+    const list = store.productos || [];
+    if (!term) return list;
+    return list.filter(
+      (p) =>
+        (p.nombre || "").toLowerCase().includes(term) ||
+        (p.categoria || "").toLowerCase().includes(term)
+    );
+  }, [store.productos, filtro]);
+
+  // autoseleccionar el primero al cambiar filtro/lista
+  useEffect(() => {
+    if (!productoId && productosFiltrados.length > 0) {
+      setProductoId(String(productosFiltrados[0].id));
+    }
+  }, [productoId, productosFiltrados]);
+
+  // sincronizar form.producto_id con select local
+  useEffect(() => {
+    setForm((f) => ({ ...f, producto_id: productoId ? Number(productoId) : "" }));
+  }, [productoId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -52,9 +94,10 @@ const RegistrarEntradaPage = () => {
       };
 
       const res = await actions.registrarEntrada(body);
-      alert("Entrada registrada. Stock actual: " + res.stock_actual);
+      const stock = res?.producto?.stock_actual ?? "—";
+      alert("Entrada registrada. Stock actual: " + stock);
 
-      // limpiar campos variables, mantener selección
+      // limpiar variables, mantener selecciones básicas
       setForm((f) => ({
         ...f,
         cantidad: 1,
@@ -65,6 +108,8 @@ const RegistrarEntradaPage = () => {
         precio_sin_iva: "",
         precio_con_iva: ""
       }));
+      actions.getEntradas();
+      actions.getProductos(); // refresca stock en pantalla
     } catch (e2) {
       alert("Error: " + e2.message);
     } finally {
@@ -72,10 +117,39 @@ const RegistrarEntradaPage = () => {
     }
   };
 
+  const handleNuevoSaved = async () => {
+    setShowNuevo(false);
+    await actions.getProductos();
+    // si quieres, podrías intentar seleccionar por nombre recién creado
+  };
+
   return (
     <div className="container py-4">
       <h2>Registrar entrada</h2>
 
+      {/* Buscador + “Nuevo producto” */}
+      <div className="card mb-3">
+        <div className="card-body">
+          <div className="row g-3 align-items-end">
+            <div className="col-md-6">
+              <label className="form-label">Buscar producto</label>
+              <input
+                className="form-control"
+                placeholder="Escribe nombre o categoría…"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+              />
+            </div>
+            <div className="col-md-6 d-flex justify-content-md-end">
+              <button type="button" className="btn btn-outline-primary mt-4 mt-md-0" onClick={() => setShowNuevo(true)}>
+                + Nuevo producto
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Formulario */}
       <form className="mt-3" onSubmit={handleSubmit}>
         <div className="row">
           <div className="col-md-6 mb-3">
@@ -83,15 +157,27 @@ const RegistrarEntradaPage = () => {
             <select
               className="form-select"
               name="producto_id"
-              value={form.producto_id}
-              onChange={handleChange}
+              value={productoId}
+              onChange={(e) => setProductoId(e.target.value)}
               required
             >
-              <option value="">Selecciona...</option>
-              {store.productos.map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
+              {productosFiltrados.length === 0 && <option value="">— No hay resultados —</option>}
+              {productosFiltrados.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre} {p.categoria ? `— ${p.categoria}` : ""}
+                </option>
               ))}
             </select>
+            {/* info opcional de stock */}
+            {productoId && (() => {
+              const p = (store.productos || []).find(x => x.id === Number(productoId));
+              return p ? (
+                <small className="text-muted d-block mt-1">
+                  Stock actual: <strong>{p.stock_actual}</strong>
+                  {p.stock_minimo != null && <> — Mínimo: <strong>{p.stock_minimo}</strong></>}
+                </small>
+              ) : null;
+            })()}
           </div>
 
           <div className="col-md-6 mb-3">
@@ -111,8 +197,14 @@ const RegistrarEntradaPage = () => {
 
           <div className="col-md-3 mb-3">
             <label className="form-label">Cantidad</label>
-            <input type="number" className="form-control" name="cantidad" min="1"
-                   value={form.cantidad} onChange={handleChange} required/>
+            <div className="input-group">
+              <button type="button" className="btn btn-outline-secondary"
+                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}>−</button>
+              <input type="number" className="form-control text-center" min="1" name="cantidad"
+                     value={form.cantidad} onChange={handleChange} required />
+              <button type="button" className="btn btn-outline-secondary"
+                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}>+</button>
+            </div>
           </div>
 
           <div className="col-md-3 mb-3">
@@ -172,11 +264,14 @@ const RegistrarEntradaPage = () => {
 
       <hr className="my-4" />
 
-      <h5>Últimas entradas</h5>
-      <button className="btn btn-sm btn-outline-secondary mb-2" onClick={() => actions.getEntradas()}>
-        Recargar
-      </button>
-      <div className="table-responsive">
+      <div className="d-flex align-items-center justify-content-between">
+        <h5 className="mb-0">Últimas entradas</h5>
+        <button className="btn btn-sm btn-outline-secondary" onClick={() => actions.getEntradas()}>
+          Recargar
+        </button>
+      </div>
+
+      <div className="table-responsive mt-2">
         <table className="table align-middle">
           <thead>
             <tr>
@@ -189,8 +284,8 @@ const RegistrarEntradaPage = () => {
           <tbody>
             {(store.entradas || []).map((e) => (
               <tr key={e.id}>
-                <td>{new Date(e.fecha_entrada).toLocaleString()}</td>
-                <td>{e.nombre_producto || e.producto_id}</td>
+                <td>{fmtDateTime(e.fecha /* tu API usa 'fecha' */)}</td>
+                <td>{e.producto?.nombre || e.producto_nombre || `#${e.producto_id}`}</td>
                 <td className="text-end">{e.cantidad}</td>
                 <td>{e.tipo_documento || "-"} {e.numero_documento || ""}</td>
               </tr>
@@ -199,6 +294,15 @@ const RegistrarEntradaPage = () => {
         </table>
       </div>
 
+      {/* Modal: nuevo producto */}
+      {showNuevo && (
+        <ProductoFormModal
+          show={showNuevo}
+          onClose={() => setShowNuevo(false)}
+          onSaved={handleNuevoSaved}
+          initial={null}
+        />
+      )}
     </div>
   );
 };

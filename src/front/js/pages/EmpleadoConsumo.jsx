@@ -1,6 +1,17 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
 
+const getRol = () =>
+  (sessionStorage.getItem("rol") || localStorage.getItem("rol") || "")
+    .toString()
+    .toLowerCase()
+    .trim();
+
+const isAdmin = () => {
+  const r = getRol();
+  return r === "admin" || r === "administrador";
+};
+
 export default function EmpleadoConsumo() {
   const { store, actions } = useContext(Context);
 
@@ -8,18 +19,41 @@ export default function EmpleadoConsumo() {
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState(1);
   const [observaciones, setObservaciones] = useState("");
+  const [usuarioId, setUsuarioId] = useState(""); // ⬅️ nuevo: usuario elegido
   const [saving, setSaving] = useState(false);
   const [okMsg, setOkMsg] = useState("");
   const [errMsg, setErrMsg] = useState("");
 
-  // Carga productos si no están
+  const admin = isAdmin();
+
+  // Cargar datos necesarios
   useEffect(() => {
+    // Productos
     if (!Array.isArray(store.productos) || store.productos.length === 0) {
       actions.getProductos().catch(() => {});
     }
-  }, [store.productos, actions]);
+    // Usuario actual (por si no está en store.user) y lista de usuarios (si admin)
+    (async () => {
+      try {
+        if (!store.user) {
+          await actions.me();
+        }
+        if (admin) {
+          await actions.getUsuarios();
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin]);
 
-  // Lista filtrada
+  // Al tener user en store, por defecto selecciona ese usuario
+  useEffect(() => {
+    if (!usuarioId && store.user?.id) {
+      setUsuarioId(String(store.user.id));
+    }
+  }, [store.user, usuarioId]);
+
+  // Lista filtrada de productos
   const productosFiltrados = useMemo(() => {
     const term = filtro.trim().toLowerCase();
     if (!term) return store.productos || [];
@@ -36,15 +70,12 @@ export default function EmpleadoConsumo() {
     return (store.productos || []).find((p) => p.id === id) || null;
   }, [productoId, store.productos]);
 
-  // Si aparecen productos por primera vez, selecciona el primero
+  // Preseleccionar el primer producto cuando hay resultados
   useEffect(() => {
     if (!productoId && productosFiltrados.length > 0) {
       setProductoId(String(productosFiltrados[0].id));
     }
   }, [productoId, productosFiltrados]);
-
-  const dec = () => setCantidad((c) => Math.max(1, Number(c) || 1 - 1));
-  const inc = () => setCantidad((c) => Math.max(1, (Number(c) || 0) + 1));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,25 +93,31 @@ export default function EmpleadoConsumo() {
       setErrMsg("Cantidad inválida.");
       return;
     }
-    if (selected && selected.stock_actual < qty) {
+    if (selected && (selected.stock_actual || 0) < qty) {
       setErrMsg("Stock insuficiente para esa cantidad.");
       return;
     }
 
+    // Si es admin y eligió usuario, lo incluimos; si no, backend toma el del JWT
+    const payload = {
+      producto_id: pid,
+      cantidad: qty,
+      observaciones: observaciones.trim(),
+      ...(admin && usuarioId ? { usuario_id: Number(usuarioId) } : {}),
+    };
+
     setSaving(true);
     try {
-      await actions.registrarSalida({
-        producto_id: pid,
-        cantidad: qty,
-        observaciones: observaciones.trim(),
-      });
-
-      setOkMsg("Salida registrada correctamente.");
+      const res = await actions.registrarSalida(payload);
+      const nuevoStock = res?.producto?.stock_actual ?? res?.stock_actual;
+      setOkMsg(
+        `Salida registrada correctamente. Stock actual: ${
+          nuevoStock !== undefined ? nuevoStock : "—"
+        }`
+      );
       setCantidad(1);
       setObservaciones("");
-      // refresca stock
       await actions.getProductos();
-      // auto-oculta mensaje
       setTimeout(() => setOkMsg(""), 2500);
     } catch (err) {
       setErrMsg(err?.message || "Error registrando la salida.");
@@ -89,26 +126,55 @@ export default function EmpleadoConsumo() {
     }
   };
 
+  // Helper UI: nombre del usuario seleccionado (para no-admin mostrarlo)
+  const selectedUserName = useMemo(() => {
+    if (!usuarioId) return store.user?.nombre || store.user?.email || "";
+    const u = (store.usuarios || []).find((x) => x.id === Number(usuarioId));
+    return u?.nombre || u?.email || store.user?.nombre || store.user?.email || "";
+  }, [usuarioId, store.usuarios, store.user]);
+
   return (
     <div className="container py-4">
       <h2 className="mb-3">Tomar producto (Consumo)</h2>
 
       {/* Mensajes */}
-      {okMsg && (
-        <div className="alert alert-success" role="alert">
-          {okMsg}
-        </div>
-      )}
-      {errMsg && (
-        <div className="alert alert-danger" role="alert">
-          {errMsg}
-        </div>
-      )}
+      {okMsg && <div className="alert alert-success">{okMsg}</div>}
+      {errMsg && <div className="alert alert-danger">{errMsg}</div>}
 
       <div className="card mb-4">
         <div className="card-body">
           <form onSubmit={handleSubmit}>
-            {/* Filtro */}
+            {/* Usuario (selector) */}
+            <div className="row g-3">
+              <div className="col-md-6">
+                <label className="form-label">Retirado por</label>
+                {admin ? (
+                  <select
+                    className="form-select"
+                    value={usuarioId}
+                    onChange={(e) => setUsuarioId(e.target.value)}
+                  >
+                    {!usuarioId && <option value="">Selecciona un usuario…</option>}
+                    {(store.usuarios || []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nombre || u.email} {u.rol ? `— ${u.rol}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="form-control"
+                    value={selectedUserName || "Tu usuario"}
+                    disabled
+                    readOnly
+                  />
+                )}
+              </div>
+            </div>
+
+            <hr className="my-4" />
+
+            {/* Filtro de producto */}
             <div className="mb-3">
               <label className="form-label">Buscar producto</label>
               <input
@@ -119,7 +185,7 @@ export default function EmpleadoConsumo() {
               />
             </div>
 
-            {/* Producto */}
+            {/* Producto + cantidad + observaciones */}
             <div className="row g-3 align-items-end">
               <div className="col-md-6">
                 <label className="form-label">Producto</label>
@@ -137,14 +203,13 @@ export default function EmpleadoConsumo() {
                     </option>
                   ))}
                 </select>
-                {/* Info de stock */}
                 {selected && (
                   <small className="text-muted d-block mt-1">
-                    Stock actual: <strong>{selected.stock_actual}</strong>{" "}
+                    Stock actual: <strong>{selected.stock_actual}</strong>
                     {selected.stock_minimo != null && (
                       <>
-                        — Mínimo: <strong>{selected.stock_minimo}</strong>{" "}
-                        {selected.stock_actual <= selected.stock_minimo && (
+                        {" — "}Mínimo: <strong>{selected.stock_minimo}</strong>
+                        {(selected.stock_actual || 0) <= (selected.stock_minimo || 0) && (
                           <span className="badge bg-warning text-dark ms-2">
                             Bajo stock
                           </span>
@@ -155,14 +220,15 @@ export default function EmpleadoConsumo() {
                 )}
               </div>
 
-              {/* Cantidad */}
               <div className="col-md-3">
                 <label className="form-label">Cantidad</label>
                 <div className="input-group">
                   <button
                     type="button"
                     className="btn btn-outline-secondary"
-                    onClick={() => setCantidad((c) => Math.max(1, (Number(c) || 1) - 1))}
+                    onClick={() =>
+                      setCantidad((c) => Math.max(1, (Number(c) || 1) - 1))
+                    }
                     disabled={saving}
                   >
                     −
@@ -174,7 +240,9 @@ export default function EmpleadoConsumo() {
                     value={cantidad}
                     onChange={(e) =>
                       setCantidad(
-                        e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
+                        e.target.value === ""
+                          ? ""
+                          : Math.max(1, Number(e.target.value))
                       )
                     }
                   />
@@ -189,7 +257,6 @@ export default function EmpleadoConsumo() {
                 </div>
               </div>
 
-              {/* Observaciones */}
               <div className="col-md-12">
                 <label className="form-label">Observaciones (opcional)</label>
                 <input
@@ -202,7 +269,11 @@ export default function EmpleadoConsumo() {
             </div>
 
             <div className="mt-4">
-              <button className="btn btn-primary" type="submit" disabled={saving || !productoId}>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={saving || !productoId || (admin && !usuarioId)}
+              >
                 {saving ? "Guardando..." : "Tomar producto"}
               </button>
             </div>
@@ -210,7 +281,7 @@ export default function EmpleadoConsumo() {
         </div>
       </div>
 
-      {/* Tabla rápida para visualizar/seleccionar (opcional) */}
+      {/* Tabla de catálogo filtrado */}
       <div className="card">
         <div className="card-header">Catálogo (filtrado)</div>
         <div className="table-responsive">
@@ -236,7 +307,6 @@ export default function EmpleadoConsumo() {
                       className="btn btn-sm btn-outline-primary"
                       onClick={() => {
                         setProductoId(String(p.id));
-                        // si la cantidad es mayor que stock, bájala
                         if ((Number(cantidad) || 1) > (p.stock_actual || 0)) {
                           setCantidad(Math.max(1, p.stock_actual || 1));
                         }
