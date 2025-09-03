@@ -1,1 +1,53 @@
-# (pega aquí el YAML corregido)
+cd /workspaces/specialwash1
+git checkout main
+git pull --rebase origin main
+
+cat > render.yaml <<'YAML'
+databases:
+  - name: specialwash-db
+    plan: free
+
+services:
+  # API Flask (plan FREE)
+  - name: specialwash-api
+    type: web
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: FLASK_APP=src/app.py PYTHONPATH=src flask db upgrade
+    startCommand: gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT src.app:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: specialwash-db
+          property: connectionString
+      - key: PYTHONPATH
+        value: src
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_APP
+        value: src/app.py
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: FLASK_APP_KEY
+        generateValue: true
+      # Después de desplegar el frontend, cambia esto por la URL real del sitio estático:
+      - key: FRONTEND_ORIGIN
+        value: https://<frontend-domain>.onrender.com
+
+  # Frontend estático (static site)
+  - name: specialwash-frontend
+    type: web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: build
+    envVars:
+      # Después de desplegar la API, cambia esto por la URL pública real de la API:
+      - key: REACT_APP_BACKEND_URL
+        value: https://<api-domain>.onrender.com/api
+YAML
+
+git add render.yaml
+git commit -m "fix(render): blueprint válido (api plan free + static site)"
+git push --no-verify origin main
