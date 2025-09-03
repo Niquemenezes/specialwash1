@@ -79,3 +79,7 @@ This boilerplate it's 100% read to deploy with Render.com and Heroku in a matter
 This template was built as part of the SpecialWash Academy [Coding Bootcamp](https://SpecialWashacademy.com/us/coding-bootcamp) by [Alejandro Sanchez](https://twitter.com/alesanchezr) and many other contributors. Find out more about our [Full Stack Developer Course](https://SpecialWashacademy.com/us/coding-bootcamps/part-time-full-stack-developer), and [Data Science Bootcamp](https://SpecialWashacademy.com/us/coding-bootcamps/datascience-machine-learning).
 
 You can find other templates and resources like this at the [school github page](https://github.com/SpecialWashacademy/).
+
+## Desarrollo (DEV)
+Para levantar el entorno de desarrollo, consulta **[README_dev.md](./README_dev.md)**.
+
