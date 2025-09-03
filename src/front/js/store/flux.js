@@ -1,7 +1,7 @@
 // src/front/js/store/flux.js — SpecialWash (roles + módulos + candados anti-bucle)
 
 const getState = ({ getStore, getActions, setStore }) => {
-  const API = process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:3001";
+  const API = process.env.REACT_APP_BACKEND_URL || "https://congenial-space-xylophone-569v6grv5rxcvw64-3001.app.github.dev/";
 
   // ====== Candados simples para evitar múltiples fetch en StrictMode/re-montajes ======
   let _loadingUsuarios = false;
