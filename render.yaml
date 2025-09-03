@@ -3,13 +3,14 @@ databases:
     plan: free
 
 services:
+  # API Flask
   - name: specialwash-api
     type: web
-    env: python
+    runtime: python            # en vez de env: python
     region: oregon
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: FLASK_APP=src/app.py PYTHONPATH=src flask db upgrade
     startCommand: gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT src.app:app
-    postDeployCommand: FLASK_APP=src/app.py PYTHONPATH=src flask db upgrade
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -25,17 +26,17 @@ services:
         generateValue: true
       - key: FLASK_APP_KEY
         generateValue: true
-      # ⚠️ tras desplegar el frontend, actualiza este valor con la URL real del static site:
+      # ⚠️ tras desplegar el frontend, poner aquí la URL real del sitio estático
       - key: FRONTEND_ORIGIN
         value: https://<frontend-domain>.onrender.com
 
+  # Frontend estático (Webpack)
   - name: specialwash-frontend
-    type: static
-    region: oregon
+    type: web
+    runtime: static            # static site → type:web + runtime:static
     buildCommand: npm ci && npm run build
-    # Cambia a 'build' si tu webpack genera 'build' en lugar de 'dist'
-    staticPublishPath: dist
+    staticPublishPath: dist    # cambia a 'build' si tu bundle sale en build/
     envVars:
-      # ⚠️ tras saber la URL de la API, actualiza esto con la URL real:
+      # ⚠️ tras desplegar la API, poner aquí la URL pública de la API
       - key: REACT_APP_BACKEND_URL
         value: https://<api-domain>.onrender.com/api
