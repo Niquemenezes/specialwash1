@@ -19,6 +19,55 @@ load_dotenv()
 # ===== Crear la app =====
 app = Flask(__name__)
 
+### SPA_SERVE_BEGIN ###
+import os as _os
+# Normaliza DATABASE_URL (Render a veces da postgres://)
+_db = _os.getenv("DATABASE_URL")
+if _db and _db.startswith("postgres://"):
+    _db = _db.replace("postgres://", "postgresql://", 1)
+try:
+    app.config["SQLALCHEMY_DATABASE_URI"] = _db or app.config.get("SQLALCHEMY_DATABASE_URI")
+except Exception:
+    pass
+
+# Detecta carpeta de build del frontend
+_BASE = _os.path.dirname(__file__)
+_DIST = _os.path.abspath(_os.path.join(_BASE, "..", "dist"))
+_BUILD = _os.path.abspath(_os.path.join(_BASE, "..", "build"))
+STATIC_DIR = _DIST if _os.path.exists(_DIST) else _BUILD
+
+if _os.path.isdir(STATIC_DIR):
+    app.static_folder = STATIC_DIR
+    app.static_url_path = ""
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_spa(path):
+        # Deja pasar rutas /api/*
+        if path.startswith("api/") or path == "api":
+            from flask import abort
+            abort(404)
+        full_path = _os.path.join(app.static_folder, path)
+        if path and _os.path.isfile(full_path):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, "index.html")
+### SPA_SERVE_END ###
+
+import os
+_BASE = os.path.dirname(__file__)
+_DIST = os.path.abspath(os.path.join(_BASE, "..", "dist"))
+_BUILD = os.path.abspath(os.path.join(_BASE, "..", "build"))
+STATIC_DIR = _DIST if os.path.exists(_DIST) else _BUILD
+if os.path.isdir(STATIC_DIR):
+    app.static_folder = STATIC_DIR
+    app.static_url_path = ""
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_spa(path):
+        full_path = os.path.join(app.static_folder, path)
+        if path and os.path.isfile(full_path):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, "index.html")
+
 # ===== Config JWT (headers + cookies) =====
 # Acepta tokens en Authorization y/o cookies. Así el frontend puede usar Authorization.
 app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']

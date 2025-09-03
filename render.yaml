@@ -29,6 +29,5 @@ services:
         generateValue: true
       - key: FLASK_APP_KEY
         generateValue: true
-      # El frontend hablará con la API en el mismo origen:
       - key: REACT_APP_BACKEND_URL
         value: /api
