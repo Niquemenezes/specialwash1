@@ -39,9 +39,9 @@ STATIC_DIR = _DIST if _os.path.exists(_DIST) else _BUILD
 if _os.path.isdir(STATIC_DIR):
     app.static_folder = STATIC_DIR
     app.static_url_path = ""
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def serve_spa(path):
+#     @app.route("/", defaults={"path": ""})
+#     @app.route("/<path:path>")
+    def __disabled_serve_spa(path):
         # Deja pasar rutas /api/*
         if path.startswith("api/") or path == "api":
             from flask import abort
@@ -60,9 +60,9 @@ STATIC_DIR = _DIST if os.path.exists(_DIST) else _BUILD
 if os.path.isdir(STATIC_DIR):
     app.static_folder = STATIC_DIR
     app.static_url_path = ""
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def serve_spa(path):
+#     @app.route("/", defaults={"path": ""})
+#     @app.route("/<path:path>")
+    def __disabled_serve_spa(path):
         full_path = os.path.join(app.static_folder, path)
         if path and os.path.isfile(full_path):
             return send_from_directory(app.static_folder, path)
