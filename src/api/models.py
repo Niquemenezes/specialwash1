@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
+from sqlalchemy.sql import func
 
 db = SQLAlchemy()
 
@@ -61,7 +62,7 @@ class Entrada(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     producto_id = db.Column(db.Integer, db.ForeignKey("producto.id"), nullable=False)
     proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"))
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime(timezone=True), server_default=func.now())
     cantidad = db.Column(db.Integer, nullable=False)
     numero_albaran = db.Column(db.String(120))
     precio_sin_iva = db.Column(db.Float)
@@ -69,12 +70,11 @@ class Entrada(db.Model):
     valor_iva = db.Column(db.Float)
     precio_con_iva = db.Column(db.Float)
 
-# models.py
-from datetime import datetime
+
 
 class Salida(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime(timezone=True), server_default=func.now())
     producto_id = db.Column(db.Integer, db.ForeignKey('producto.id'))
     usuario_id  = db.Column(db.Integer, db.ForeignKey('user.id'))
     cantidad = db.Column(db.Integer, nullable=False)

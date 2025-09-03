@@ -1,12 +1,8 @@
 import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../store/appContext";
 import ProductoFormModal from "./ProductoFormModal.jsx";
+import { fmtSpain } from "../utils/dates";
 
-const fmtDateTime = (s) => {
-  if (!s) return "-";
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? "-" : d.toLocaleString();
-};
 
 const RegistrarEntradaPage = () => {
   const { store, actions } = useContext(Context);
@@ -284,7 +280,8 @@ const RegistrarEntradaPage = () => {
           <tbody>
             {(store.entradas || []).map((e) => (
               <tr key={e.id}>
-                <td>{fmtDateTime(e.fecha /* tu API usa 'fecha' */)}</td>
+                <td>{fmtSpain(e.fecha)}</td>
+                <td>{fmtSpain(s.fecha)}</td>
                 <td>{e.producto?.nombre || e.producto_nombre || `#${e.producto_id}`}</td>
                 <td className="text-end">{e.cantidad}</td>
                 <td>{e.tipo_documento || "-"} {e.numero_documento || ""}</td>

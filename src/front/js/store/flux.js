@@ -109,19 +109,19 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       // ===== AUTH
       signup: async (nombre, email, password, rol = "empleado") => {
-  try {
-    await apiFetch("/api/signup", {
-      method: "POST",
-      auth: false,
-      body: { nombre, email, password, rol },
-    });
-    // No guardamos token ni auth aquí a propósito
-    return { ok: true };
-  } catch (err) {
-    console.error("signup:", err);
-    return { ok: false, error: err.message };
-  }
-},
+        try {
+          await apiFetch("/api/signup", {
+            method: "POST",
+            auth: false,
+            body: { nombre, email, password, rol },
+          });
+          // No guardamos token ni auth aquí a propósito
+          return { ok: true };
+        } catch (err) {
+          console.error("signup:", err);
+          return { ok: false, error: err.message };
+        }
+      },
       // (opcional) loginCookie si usas cookie-only
       loginCookie: async (email, password) => {
         try {
@@ -297,11 +297,36 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       updateProducto: async (id, producto) => {
         try {
-          const updated = await apiFetch(`/api/productos/${id}`, { method: "PUT", body: producto });
+          // Asegura tipos numéricos válidos si vienen como string
+          const payload = { ...producto };
+
+          if (payload.stock_minimo !== undefined) {
+            payload.stock_minimo =
+              payload.stock_minimo === "" || payload.stock_minimo === null
+                ? 0
+                : Number(payload.stock_minimo);
+          }
+          if (payload.stock_actual !== undefined) {
+            payload.stock_actual =
+              payload.stock_actual === "" || payload.stock_actual === null
+                ? 0
+                : Number(payload.stock_actual);
+          }
+
+          const updated = await apiFetch(`/api/productos/${id}`, {
+            method: "PUT",
+            body: payload
+          });
+
           const { productos } = getStore();
-          setStore({ productos: productos.map(p => p.id === updated.id ? updated : p) });
+          setStore({
+            productos: (productos || []).map(p => (p.id === updated.id ? updated : p))
+          });
           return updated;
-        } catch (err) { console.error("updateProducto:", err); throw err; }
+        } catch (err) {
+          console.error("updateProducto:", err);
+          throw err;
+        }
       },
 
       deleteProducto: async (id) => {

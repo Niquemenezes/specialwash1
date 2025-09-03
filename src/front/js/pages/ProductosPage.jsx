@@ -1,3 +1,4 @@
+// src/front/js/pages/ProductosPage.jsx
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
 import ProductoFormModal from "./ProductoFormModal.jsx";
@@ -7,13 +8,17 @@ export default function ProductosPage() {
 
   const [filtro, setFiltro] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null); // null => crear, obj => editar
+  const [editing, setEditing] = useState(null); // null => crear, objeto => editar
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      try { await actions.getProductos(); } finally { setLoading(false); }
+      try {
+        await actions.getProductos();
+      } finally {
+        setLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -24,21 +29,30 @@ export default function ProductosPage() {
     const term = filtro.trim().toLowerCase();
     if (!term) return productos;
     return productos.filter(
-      p =>
+      (p) =>
         (p.nombre || "").toLowerCase().includes(term) ||
         (p.categoria || "").toLowerCase().includes(term)
     );
   }, [productos, filtro]);
 
-  const bajosDeStock = useMemo(() => {
-    return productos.filter(p =>
-      p?.stock_minimo != null &&
-      Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0)
-    );
-  }, [productos]);
+  const bajosDeStock = useMemo(
+    () =>
+      productos.filter(
+        (p) =>
+          p?.stock_minimo != null &&
+          Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0)
+      ),
+    [productos]
+  );
 
-  const openCrear = () => { setEditing(null); setShowModal(true); };
-  const openEditar = (p) => { setEditing(p); setShowModal(true); };
+  const openCrear = () => {
+    setEditing(null);
+    setShowModal(true);
+  };
+  const openEditar = (p) => {
+    setEditing(p);
+    setShowModal(true);
+  };
 
   const onSaved = async () => {
     setShowModal(false);
@@ -46,7 +60,7 @@ export default function ProductosPage() {
   };
 
   const onDelete = async (id) => {
-    const p = productos.find(x => x.id === id);
+    const p = productos.find((x) => x.id === id);
     if (!window.confirm(`¿Eliminar el producto "${p?.nombre || id}"?`)) return;
     try {
       await actions.deleteProducto(id);
@@ -104,61 +118,75 @@ export default function ProductosPage() {
                 <th style={{ width: 48 }}>#</th>
                 <th>Producto</th>
                 <th>Categoría</th>
-                <th className="text-end" style={{ width: 140 }}>Stock</th>
-                <th className="text-end" style={{ width: 140 }}>Mínimo</th>
-                <th className="text-end" style={{ width: 170 }}>Acciones</th>
+                <th className="text-end" style={{ width: 140 }}>
+                  Stock
+                </th>
+                <th className="text-end" style={{ width: 140 }}>
+                  Mínimo
+                </th>
+                <th className="text-end" style={{ width: 170 }}>
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="text-center py-4">Cargando…</td>
+                  <td colSpan={6} className="text-center py-4">
+                    Cargando…
+                  </td>
                 </tr>
               )}
 
               {!loading && productosFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center text-muted py-4">
-                    No hay productos {filtro ? "que coincidan con la búsqueda." : "registrados todavía."}
+                    No hay productos{" "}
+                    {filtro ? "que coincidan con la búsqueda." : "registrados todavía."}
                   </td>
                 </tr>
               )}
 
-              {!loading && productosFiltrados.map((p, idx) => {
-                const bajo = p?.stock_minimo != null && Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0);
-                return (
-                  <tr key={p.id}>
-                    <td className="text-muted">#{p.id}</td>
-                    <td>
-                      <div className="fw-semibold">{p.nombre}</div>
-                      {bajo && (
-                        <span className="badge bg-warning text-dark mt-1">Bajo stock</span>
-                      )}
-                    </td>
-                    <td>{p.categoria || "—"}</td>
-                    <td className="text-end">{p.stock_actual ?? 0}</td>
-                    <td className="text-end">{p.stock_minimo ?? "—"}</td>
-                    <td className="text-end">
-                      <div className="btn-group">
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => openEditar(p)}
-                          title="Editar"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => onDelete(p.id)}
-                          title="Eliminar"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {!loading &&
+                productosFiltrados.map((p) => {
+                  const bajo =
+                    p?.stock_minimo != null &&
+                    Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0);
+                  return (
+                    <tr key={p.id}>
+                      <td className="text-muted">#{p.id}</td>
+                      <td>
+                        <div className="fw-semibold">{p.nombre}</div>
+                        {bajo && (
+                          <span className="badge bg-warning text-dark mt-1">
+                            Bajo stock
+                          </span>
+                        )}
+                      </td>
+                      <td>{p.categoria || "—"}</td>
+                      <td className="text-end">{p.stock_actual ?? 0}</td>
+                      <td className="text-end">{p.stock_minimo ?? "—"}</td>
+                      <td className="text-end">
+                        <div className="btn-group">
+                          <button
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => openEditar(p)}
+                            title="Editar"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => onDelete(p.id)}
+                            title="Eliminar"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
