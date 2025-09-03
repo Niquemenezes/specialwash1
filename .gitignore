@@ -86,3 +86,5 @@ __pycache__/
 dev.db
 .venv/
 node_modules/
+
+*.bak
