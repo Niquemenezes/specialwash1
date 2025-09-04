@@ -3,7 +3,7 @@ import os
 import re
 from urllib.parse import urlparse
 from dotenv import load_dotenv
-from flask import Flask, jsonify, send_from_directory, request, Response
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
@@ -35,11 +35,10 @@ if not db_url:
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
 elif db_url.startswith("postgresql://") and "psycopg2" not in db_url:
-    # no obligatorio, pero útil si especificas el driver
     db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
-app.config["SQLALCHEMY_TRACKMODIFICATIONS"] = False
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # <- corregido el nombre
 app.config["JSON_SORT_KEYS"] = False
 
 # ===== JWT =====
@@ -50,25 +49,22 @@ app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY", "change-me-in-prod")
 
 # ===== CORS (Codespaces + local) =====
-# FRONTEND_ORIGIN puede contener una o varias URLs separadas por coma
 origins_env = [o.strip() for o in os.getenv("FRONTEND_ORIGIN", "").split(",") if o.strip()]
-
 allowed_origins = origins_env.copy()
-# Acepta cualquier subdominio de Codespaces y puertos habituales en local
 allowed_origins += [
-    re.compile(r"^https://.*\.app\.github\.dev$"),
+    re.compile(r"^https://.*\.app\.github\.dev$"),  # cualquier Codespace
     "http://localhost:3000", "http://127.0.0.1:3000",
     "http://localhost:3001", "http://127.0.0.1:3001",
 ]
 
-# Aplica CORS a TODAS las rutas (incluye preflights a cualquier endpoint)
+# Aplica CORS global (todas las rutas, incluye preflights)
 CORS(
     app,
-    resources={r"/*": {"origins": allowed_origins if allowed_origins else "*"}},
-    supports_credentials=True,
+    resources={r"/*": {"origins": allowed_origins}},
+    supports_credentials=True
 )
 
-# Refuerza headers CORS en cada respuesta (útil para proxies caprichosos)
+# Refuerza headers CORS en cada respuesta
 @app.after_request
 def _force_cors_headers(resp):
     origin = request.headers.get("Origin") or ""
@@ -100,7 +96,7 @@ if os.path.isdir(STATIC_DIR):
 
 # ===== Extensiones =====
 db.init_app(app)
-migrate = Migrate(app, db, compare_type=True)  # ✅ inicializa Migrate aquí (y solo aquí)
+migrate = Migrate(app, db, compare_type=True)
 jwt = JWTManager(app)
 swagger = Swagger(app)
 
@@ -128,7 +124,6 @@ def health():
 
 @app.get("/")
 def sitemap():
-    # Muestra el sitemap solo en dev
     if not IS_PROD:
         return generate_sitemap(app)
     return send_from_directory(static_file_dir, "index.html")
@@ -174,8 +169,6 @@ print(">>> Using DB:", app.config["SQLALCHEMY_DATABASE_URI"], flush=True)
 
 # ===== Entry point local =====
 if __name__ == "__main__":
-    # Si ya usas migraciones, puedes comentar create_all()
-    # para evitar divergencias con Alembic.
     with app.app_context():
         db.create_all()
     PORT = int(os.environ.get("PORT", 3001))

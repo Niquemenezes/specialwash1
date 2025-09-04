@@ -7,6 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+from sqlalchemy import func, desc
+
 
 from .models import db, User, Producto, Proveedor, Entrada, Salida, Maquinaria
 

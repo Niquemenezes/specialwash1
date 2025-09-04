@@ -213,28 +213,27 @@ const RegistrarEntradaPage = () => {
   };
 
   // === Lista de entradas ORDENADA (última primero) sin mutar el store ===
-  const entradasOrdenadas = useMemo(() => {
-    const list = store.entradas || [];
-    const toTS = (x) => {
-      if (!x) return 0;
-      if (typeof x === "number") return x < 2_000_000_000 ? x * 1000 : x;
-      if (typeof x === "string") {
-        if (/^\d{4}-\d{2}-\d{2}T/.test(x)) {
-          const d = new Date(x);
-          return isNaN(d) ? 0 : d.getTime();
-        }
-        const d = new Date(x.replace(" ", "T"));
-        return isNaN(d) ? 0 : d.getTime();
+  // === Lista de entradas ORDENADA (última primero) sin mutar el store ===
+const entradasOrdenadas = useMemo(() => {
+  const list = store.entradas || [];
+  const toTS = (x) => {
+    if (!x) return 0;
+    if (typeof x === "number") return x < 2_000_000_000 ? x * 1000 : x;
+    if (typeof x === "string") {
+      if (/^\d{4}-\d{2}-\d{2}T/.test(x)) {
+        const d = new Date(x); return isNaN(d) ? 0 : d.getTime();
       }
-      return 0;
-    };
-    return [...list].sort((a, b) => {
-      const ta = toTS(a.fecha || a.created_at || a.fecha_entrada || a.fecha_registro || a.timestamp);
-      const tb = toTS(b.fecha || b.created_at || b.fecha_entrada || b.fecha_registro || b.timestamp);
-      if (tb !== ta) return tb - ta; // descendente por fecha/hora
-      return (b.id || 0) - (a.id || 0); // desempate por id desc
-    });
-  }, [store.entradas]);
+      const d = new Date(x.replace(" ", "T")); return isNaN(d) ? 0 : d.getTime();
+    }
+    return 0;
+  };
+  return [...list].sort((a, b) => {
+    const ta = toTS(a.fecha || a.created_at || a.fecha_entrada || a.fecha_registro || a.timestamp);
+    const tb = toTS(b.fecha || b.created_at || b.fecha_entrada || b.fecha_registro || b.timestamp);
+    if (tb !== ta) return tb - ta;
+    return (b.id || 0) - (a.id || 0);
+  });
+}, [store.entradas]);
 
   return (
     <div className="container py-4">
