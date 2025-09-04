@@ -188,15 +188,17 @@ export default function HistorialSalidas() {
               </tr>
             )}
             {!loading &&
-              rows.map((r) => (
+              (rows || []).map((r) => (
                 <tr key={r.id}>
-                  <td>{fmtDateTime(r.fecha)}</td>
-                  <td>{r.producto_nombre || `#${r.producto_id}`}</td>
+                  <td>{fmtDateTime(r.fecha /* backend usa 'fecha' */)}</td>
+                  <td>{r.producto_nombre || r.producto?.nombre || `#${r.producto_id}`}</td>
                   <td className="text-end">{r.cantidad}</td>
-                  <td>{r.usuario_nombre || (r.usuario_id ? `#${r.usuario_id}` : "-")}</td>
+                  <td>{r.usuario_nombre || `#${r.usuario_id || "-"}`}</td>
                   <td>{r.observaciones || "-"}</td>
                 </tr>
-              ))}
+              ))
+
+            }
           </tbody>
         </table>
       </div>
