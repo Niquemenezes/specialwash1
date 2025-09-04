@@ -8,19 +8,17 @@ services:
 
     buildCommand: |
       pip install -r requirements.txt
-      if [ -f package.json ]; then
-        if [ -f package-lock.json ]; then npm ci; else npm install; fi
-        npm run build
-      fi
 
     startCommand: >
       gunicorn -w 4 -k gthread -b 0.0.0.0:$PORT src.app:app
+
+    # Corre migraciones ANTES de publicar cada deploy
+    preDeployCommand: |
+      flask db upgrade
 
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.8
       - key: FLASK_ENV
         value: production
-      # Descomenta y pon tu valor si lo usas en Flask
-      # - key: SECRET_KEY
-      #   value: "cambia-esto-por-tu-clave"
+      # Define el resto (JWT_SECRET_KEY, DATABASE_URL, etc.) desde el panel

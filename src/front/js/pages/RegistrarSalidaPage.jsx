@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../store/appContext";
-import ProductoFormModal from "./ProductoFormModal.jsx";
+import ProductoFormModal from "../component/ProductoFormModal.jsx";
 
 const fmtDateTime = (s) => {
   if (!s) return "-";

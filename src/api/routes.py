@@ -362,21 +362,23 @@ def entradas_list():
     if hasta:
         q = q.filter(Entrada.fecha <= f"{hasta} 23:59:59")
 
-    q = q.order_by(Entrada.fecha.desc())
+    q = q.order_by(desc(func.coalesce(Entrada.fecha, Entrada.created_at)))
     data = []
     for e in q.all():
         data.append({
-            "id": e.id,
-            "fecha": e.fecha.isoformat() if e.fecha else None,
-            "cantidad": e.cantidad,
-            "numero_albaran": e.numero_albaran,
-            "precio_sin_iva": e.precio_sin_iva,
-            "porcentaje_iva": e.porcentaje_iva,
-            "valor_iva": e.valor_iva,
-            "precio_con_iva": e.precio_con_iva,
-            "producto": Producto.query.get(e.producto_id).to_dict() if e.producto_id else None,
-            "proveedor": Proveedor.query.get(e.proveedor_id).to_dict() if e.proveedor_id else None,
-        })
+    "id": e.id,
+    "fecha": e.fecha.isoformat() if e.fecha else None,
+    "created_at": e.created_at.isoformat() if getattr(e, "created_at", None) else None,  # 👈 NUEVO
+    "cantidad": e.cantidad,
+    "numero_albaran": e.numero_albaran,
+    "precio_sin_iva": e.precio_sin_iva,
+    "porcentaje_iva": e.porcentaje_iva,
+    "valor_iva": e.valor_iva,
+    "precio_con_iva": e.precio_con_iva,
+    "producto": Producto.query.get(e.producto_id).to_dict() if e.producto_id else None,
+    "proveedor": Proveedor.query.get(e.proveedor_id).to_dict() if e.proveedor_id else None,
+})
+
     return jsonify(data), 200
 
 
@@ -387,16 +389,25 @@ def entradas_list():
 @role_required("administrador", "empleado")
 def registrar_salida():
     try:
-        data = request.get_json() or {}
-        pid = data.get("producto_id")
-        qty = int(data.get("cantidad") or 0)
-        obs = data.get("observaciones", "")
+        data = request.get_json(silent=True) or {}
 
-        if not pid or qty <= 0:
+        # --- Datos de entrada ---
+        try:
+            pid = int(data.get("producto_id"))
+            qty = int(data.get("cantidad") or 0)
+        except (TypeError, ValueError):
+            return jsonify({"msg": "producto_id y cantidad deben ser enteros"}), 400
+
+        obs = (data.get("observaciones") or "").strip()
+        if pid <= 0 or qty <= 0:
             return jsonify({"msg": "Datos inválidos"}), 400
 
-        # identidad por defecto: usuario del token
+        # --- Identidad / rol ---
         ident = get_jwt_identity()
+        # Si guardas el identity como JSON string, descoméntalo:
+        # import json
+        # ident = json.loads(ident)
+        # uid = int(ident.get("id"))
         try:
             uid = int(ident)
         except (TypeError, ValueError):
@@ -405,8 +416,8 @@ def registrar_salida():
         claims = get_jwt() or {}
         rol = (claims.get("rol") or "").lower()
 
-        # si es admin y manda usuario_id, se usa (validado)
-        if rol == "administrador" and data.get("usuario_id"):
+        # Si es admin y manda usuario_id explícito
+        if rol == "administrador" and data.get("usuario_id") is not None:
             try:
                 uid_override = int(data["usuario_id"])
             except (TypeError, ValueError):
@@ -416,29 +427,36 @@ def registrar_salida():
                 return jsonify({"msg": "Usuario no existe"}), 404
             uid = target.id
 
-        with db.session.begin():
-            prod = db.session.query(Producto).with_for_update().get(pid)
-            if not prod:
-                return jsonify({"msg": "Producto no existe"}), 404
-            if (prod.stock_actual or 0) < qty:
-                return jsonify({"msg": "Stock insuficiente"}), 400
+        # --- Lógica principal (SIN with db.session.begin()) ---
+        # Bloquea la fila del producto para evitar condiciones de carrera
+        prod = Producto.query.with_for_update().filter_by(id=pid).first()
+        if not prod:
+            return jsonify({"msg": "Producto no existe"}), 404
 
-            prod.stock_actual = (prod.stock_actual or 0) - qty
+        stock_actual = int(prod.stock_actual or 0)
+        if stock_actual < qty:
+            return jsonify({"msg": "Stock insuficiente"}), 400
 
-            sal = Salida(
-                producto_id=pid,
-                usuario_id=uid,
-                cantidad=qty,
-                observaciones=obs
-            )
-            db.session.add(sal)
+        prod.stock_actual = stock_actual - qty
+
+        sal = Salida(
+            producto_id=pid,
+            usuario_id=uid,
+            cantidad=qty,
+            observaciones=obs
+        )
+        db.session.add(sal)
+        db.session.commit()  # ✅ commit explícito
 
         u = User.query.get(uid)
         return jsonify({
             "salida_id": sal.id,
-            "producto": prod.to_dict(),
+            "producto": prod.to_dict() if hasattr(prod, "to_dict") else {
+                "id": prod.id,
+                "stock_actual": prod.stock_actual
+            },
             "usuario_id": uid,
-            "usuario_nombre": u.nombre if u else None
+            "usuario_nombre": getattr(u, "nombre", None)
         }), 201
 
     except IntegrityError as e:
@@ -446,7 +464,9 @@ def registrar_salida():
         return jsonify({"msg": "Error de integridad", "detail": str(e)}), 400
     except Exception as e:
         current_app.logger.exception("registrar_salida failed")
+        db.session.rollback()
         return jsonify({"msg": "Error interno registrando salida", "detail": str(e)}), 500
+
 
 
 @api.route("/registro-salida", methods=["GET"])

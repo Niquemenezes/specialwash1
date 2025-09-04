@@ -1,8 +1,30 @@
+// src/front/js/pages/RegistrarEntradaPage.jsx
 import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../store/appContext";
-import ProductoFormModal from "./ProductoFormModal.jsx";
-import { fmtSpain } from "../utils/dates";
+import ProductoFormModal from "../component/ProductoFormModal.jsx";
 
+// === Formateador robusto fecha+hora (ISO, epoch, string) ===
+const fmtDateTime = (v) => {
+  if (v == null) return "-";
+  if (typeof v === "number") {
+    const ms = v < 2_000_000_000 ? v * 1000 : v;
+    const d = new Date(ms);
+    return isNaN(d) ? String(v) : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+  }
+  if (typeof v === "string") {
+    // ISO 8601
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      const d = new Date(v);
+      return isNaN(d) ? v : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+    }
+    // "YYYY-MM-DD HH:mm:ss"
+    const d = new Date(v.replace(" ", "T"));
+    return isNaN(d) ? v : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+  }
+  return String(v);
+};
+
+const numOrEmpty = (x) => (x === "" || x === null || x === undefined ? "" : x);
 
 const RegistrarEntradaPage = () => {
   const { store, actions } = useContext(Context);
@@ -18,6 +40,7 @@ const RegistrarEntradaPage = () => {
     cantidad: 1,
     tipo_documento: "albaran",
     numero_documento: "",
+    // precios / descuentos
     precio_bruto_sin_iva: "",
     descuento_porcentaje: "",
     descuento_importe: "",
@@ -61,11 +84,76 @@ const RegistrarEntradaPage = () => {
     setForm((f) => ({ ...f, producto_id: productoId ? Number(productoId) : "" }));
   }, [productoId]);
 
+  // --- Recalcular importes derivados cuando cambien precios/iva/desc. ---
+  useEffect(() => {
+    const {
+      precio_bruto_sin_iva,
+      descuento_porcentaje,
+      descuento_importe,
+      precio_sin_iva,
+      iva_porcentaje,
+      precio_con_iva
+    } = form;
+
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const bruto = toNum(precio_bruto_sin_iva);
+    const descPct = toNum(descuento_porcentaje);
+    const descImp = toNum(descuento_importe);
+    const neto = toNum(precio_sin_iva);
+    const ivaPct = toNum(iva_porcentaje);
+    const conIva = toNum(precio_con_iva);
+
+    let next = { ...form };
+    let changed = false;
+
+    // 1) Calcular descuento_importe si hay bruto y % desc y NO hay importe manual
+    if (bruto != null && descPct != null && (descImp == null || descImp === "")) {
+      const calcImp = +(bruto * (descPct / 100)).toFixed(2);
+      if (next.descuento_importe !== String(calcImp) && next.descuento_importe !== calcImp) {
+        next.descuento_importe = calcImp;
+        changed = true;
+      }
+    }
+
+    // 2) Calcular precio_sin_iva = bruto - descImp (si ambos existen y neto no se metió manual)
+    const descImpFinal = toNum(next.descuento_importe);
+    if (bruto != null && descImpFinal != null) {
+      const calcNeto = +(bruto - descImpFinal).toFixed(2);
+      if (neto == null || neto === "" || Math.abs(calcNeto - neto) > 0.001) {
+        next.precio_sin_iva = calcNeto;
+        changed = true;
+      }
+    }
+
+    // 3) Calcular precio_con_iva = neto * (1 + iva/100) si neto e iva existen
+    const netoFinal = toNum(next.precio_sin_iva);
+    if (netoFinal != null && ivaPct != null) {
+      const calcConIva = +(netoFinal * (1 + ivaPct / 100)).toFixed(2);
+      if (conIva == null || conIva === "" || Math.abs(calcConIva - conIva) > 0.001) {
+        next.precio_con_iva = calcConIva;
+        changed = true;
+      }
+    }
+
+    if (changed) setForm(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form.precio_bruto_sin_iva,
+    form.descuento_porcentaje,
+    form.descuento_importe,
+    form.precio_sin_iva,
+    form.iva_porcentaje,
+    form.precio_con_iva
+  ]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let v = value;
-    if (name === "cantidad") v = value === "" ? "" : Number(value);
-    setForm((f) => ({ ...f, [name]: v }));
+    // Permitimos vacío "", pero si no, guardamos como string numérico; el casting se hace en submit
+    setForm((f) => ({ ...f, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -76,17 +164,22 @@ const RegistrarEntradaPage = () => {
     }
     setSaving(true);
     try {
+      // Normalizar números: convertir "" -> null, y strings numéricos -> Number
+      const toNumOrNull = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
+
       const body = {
         ...form,
         producto_id: Number(form.producto_id),
         proveedor_id: form.proveedor_id ? Number(form.proveedor_id) : null,
         cantidad: Number(form.cantidad),
-        precio_bruto_sin_iva: form.precio_bruto_sin_iva === "" ? null : Number(form.precio_bruto_sin_iva),
-        descuento_porcentaje: form.descuento_porcentaje === "" ? null : Number(form.descuento_porcentaje),
-        descuento_importe: form.descuento_importe === "" ? null : Number(form.descuento_importe),
-        precio_sin_iva: form.precio_sin_iva === "" ? null : Number(form.precio_sin_iva),
-        iva_porcentaje: form.iva_porcentaje === "" ? null : Number(form.iva_porcentaje),
-        precio_con_iva: form.precio_con_iva === "" ? null : Number(form.precio_con_iva)
+        precio_bruto_sin_iva: toNumOrNull(form.precio_bruto_sin_iva),
+        descuento_porcentaje: toNumOrNull(form.descuento_porcentaje),
+        descuento_importe: toNumOrNull(form.descuento_importe),
+        precio_sin_iva: toNumOrNull(form.precio_sin_iva),
+        iva_porcentaje: toNumOrNull(form.iva_porcentaje),
+        precio_con_iva: toNumOrNull(form.precio_con_iva),
+        // backend usa numero_albaran; mantenemos compat:
+        numero_albaran: form.numero_documento || null
       };
 
       const res = await actions.registrarEntrada(body);
@@ -116,8 +209,32 @@ const RegistrarEntradaPage = () => {
   const handleNuevoSaved = async () => {
     setShowNuevo(false);
     await actions.getProductos();
-    // si quieres, podrías intentar seleccionar por nombre recién creado
+    // (opcional) podrías seleccionar el recién creado por nombre aquí
   };
+
+  // === Lista de entradas ORDENADA (última primero) sin mutar el store ===
+  const entradasOrdenadas = useMemo(() => {
+    const list = store.entradas || [];
+    const toTS = (x) => {
+      if (!x) return 0;
+      if (typeof x === "number") return x < 2_000_000_000 ? x * 1000 : x;
+      if (typeof x === "string") {
+        if (/^\d{4}-\d{2}-\d{2}T/.test(x)) {
+          const d = new Date(x);
+          return isNaN(d) ? 0 : d.getTime();
+        }
+        const d = new Date(x.replace(" ", "T"));
+        return isNaN(d) ? 0 : d.getTime();
+      }
+      return 0;
+    };
+    return [...list].sort((a, b) => {
+      const ta = toTS(a.fecha || a.created_at || a.fecha_entrada || a.fecha_registro || a.timestamp);
+      const tb = toTS(b.fecha || b.created_at || b.fecha_entrada || b.fecha_registro || b.timestamp);
+      if (tb !== ta) return tb - ta; // descendente por fecha/hora
+      return (b.id || 0) - (a.id || 0); // desempate por id desc
+    });
+  }, [store.entradas]);
 
   return (
     <div className="container py-4">
@@ -137,7 +254,11 @@ const RegistrarEntradaPage = () => {
               />
             </div>
             <div className="col-md-6 d-flex justify-content-md-end">
-              <button type="button" className="btn btn-outline-primary mt-4 mt-md-0" onClick={() => setShowNuevo(true)}>
+              <button
+                type="button"
+                className="btn btn-outline-primary mt-4 mt-md-0"
+                onClick={() => setShowNuevo(true)}
+              >
                 + Nuevo producto
               </button>
             </div>
@@ -181,11 +302,11 @@ const RegistrarEntradaPage = () => {
             <select
               className="form-select"
               name="proveedor_id"
-              value={form.proveedor_id}
+              value={numOrEmpty(form.proveedor_id)}
               onChange={handleChange}
             >
               <option value="">—</option>
-              {store.proveedores.map(pr => (
+              {(store.proveedores || []).map(pr => (
                 <option key={pr.id} value={pr.id}>{pr.nombre}</option>
               ))}
             </select>
@@ -194,18 +315,36 @@ const RegistrarEntradaPage = () => {
           <div className="col-md-3 mb-3">
             <label className="form-label">Cantidad</label>
             <div className="input-group">
-              <button type="button" className="btn btn-outline-secondary"
-                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}>−</button>
-              <input type="number" className="form-control text-center" min="1" name="cantidad"
-                     value={form.cantidad} onChange={handleChange} required />
-              <button type="button" className="btn btn-outline-secondary"
-                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}>+</button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}
+              >−</button>
+              <input
+                type="number"
+                className="form-control text-center"
+                min="1"
+                name="cantidad"
+                value={form.cantidad}
+                onChange={handleChange}
+                required
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}
+              >+</button>
             </div>
           </div>
 
           <div className="col-md-3 mb-3">
             <label className="form-label">Tipo doc.</label>
-            <select className="form-select" name="tipo_documento" value={form.tipo_documento} onChange={handleChange}>
+            <select
+              className="form-select"
+              name="tipo_documento"
+              value={form.tipo_documento}
+              onChange={handleChange}
+            >
               <option value="albaran">Albarán</option>
               <option value="factura">Factura</option>
               <option value="">—</option>
@@ -214,40 +353,86 @@ const RegistrarEntradaPage = () => {
 
           <div className="col-md-6 mb-3">
             <label className="form-label">Nº documento</label>
-            <input className="form-control" name="numero_documento" value={form.numero_documento} onChange={handleChange}/>
+            <input
+              className="form-control"
+              name="numero_documento"
+              value={form.numero_documento}
+              onChange={handleChange}
+              placeholder="Ej. ALB-2025-001"
+            />
           </div>
 
           {/* Precios / descuentos (opcionales) */}
           <div className="col-md-4 mb-3">
             <label className="form-label">Precio bruto sin IVA</label>
-            <input className="form-control" name="precio_bruto_sin_iva" value={form.precio_bruto_sin_iva}
-                   onChange={handleChange} placeholder="Ej. 100.00"/>
+            <input
+              className="form-control"
+              name="precio_bruto_sin_iva"
+              value={numOrEmpty(form.precio_bruto_sin_iva)}
+              onChange={handleChange}
+              placeholder="Ej. 100.00"
+              inputMode="decimal"
+            />
           </div>
+
           <div className="col-md-4 mb-3">
             <label className="form-label">% Descuento</label>
-            <input className="form-control" name="descuento_porcentaje" value={form.descuento_porcentaje}
-                   onChange={handleChange} placeholder="Ej. 10"/>
+            <input
+              className="form-control"
+              name="descuento_porcentaje"
+              value={numOrEmpty(form.descuento_porcentaje)}
+              onChange={handleChange}
+              placeholder="Ej. 10"
+              inputMode="decimal"
+            />
           </div>
+
           <div className="col-md-4 mb-3">
             <label className="form-label">Desc. importe</label>
-            <input className="form-control" name="descuento_importe" value={form.descuento_importe}
-                   onChange={handleChange} placeholder="Ej. 5.50"/>
+            <input
+              className="form-control"
+              name="descuento_importe"
+              value={numOrEmpty(form.descuento_importe)}
+              onChange={handleChange}
+              placeholder="Ej. 5.50"
+              inputMode="decimal"
+            />
           </div>
 
           <div className="col-md-4 mb-3">
             <label className="form-label">Precio neto sin IVA</label>
-            <input className="form-control" name="precio_sin_iva" value={form.precio_sin_iva}
-                   onChange={handleChange} placeholder="Ej. 90.00"/>
+            <input
+              className="form-control"
+              name="precio_sin_iva"
+              value={numOrEmpty(form.precio_sin_iva)}
+              onChange={handleChange}
+              placeholder="Ej. 90.00"
+              inputMode="decimal"
+            />
           </div>
+
           <div className="col-md-4 mb-3">
             <label className="form-label">% IVA</label>
-            <input className="form-control" name="iva_porcentaje" value={form.iva_porcentaje}
-                   onChange={handleChange} placeholder="21"/>
+            <input
+              className="form-control"
+              name="iva_porcentaje"
+              value={numOrEmpty(form.iva_porcentaje)}
+              onChange={handleChange}
+              placeholder="21"
+              inputMode="decimal"
+            />
           </div>
+
           <div className="col-md-4 mb-3">
             <label className="form-label">Precio con IVA</label>
-            <input className="form-control" name="precio_con_iva" value={form.precio_con_iva}
-                   onChange={handleChange} placeholder="Ej. 108.90"/>
+            <input
+              className="form-control"
+              name="precio_con_iva"
+              value={numOrEmpty(form.precio_con_iva)}
+              onChange={handleChange}
+              placeholder="Ej. 108.90"
+              inputMode="decimal"
+            />
           </div>
         </div>
 
@@ -271,20 +456,29 @@ const RegistrarEntradaPage = () => {
         <table className="table align-middle">
           <thead>
             <tr>
-              <th>Fecha</th>
+              <th>Fecha y hora</th>
               <th>Producto</th>
               <th className="text-end">Cantidad</th>
               <th>Doc.</th>
             </tr>
           </thead>
           <tbody>
-            {(store.entradas || []).map((e) => (
+            {entradasOrdenadas.map((e) => (
               <tr key={e.id}>
-                <td>{fmtSpain(e.fecha)}</td>
-                <td>{fmtSpain(s.fecha)}</td>
+                <td>
+                  {fmtDateTime(
+                    e.fecha ||
+                    e.created_at ||
+                    e.fecha_entrada ||
+                    e.fecha_registro ||
+                    e.timestamp
+                  )}
+                </td>
                 <td>{e.producto?.nombre || e.producto_nombre || `#${e.producto_id}`}</td>
                 <td className="text-end">{e.cantidad}</td>
-                <td>{e.tipo_documento || "-"} {e.numero_documento || ""}</td>
+                <td>
+                  {(e.tipo_documento || e.tipo || "-")} {e.numero_documento || e.numero_albaran || ""}
+                </td>
               </tr>
             ))}
           </tbody>

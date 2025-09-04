@@ -1,7 +1,7 @@
 // src/front/js/pages/ProductosPage.jsx
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
-import ProductoFormModal from "./ProductoFormModal.jsx";
+import ProductoFormModal from "../component/ProductoFormModal.jsx";
 
 export default function ProductosPage() {
   const { store, actions } = useContext(Context);
