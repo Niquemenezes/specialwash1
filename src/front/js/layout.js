@@ -23,7 +23,7 @@ const normalizeRol = (r) => {
   r = (r || "").toString().toLowerCase().trim();
   if (r === "admin" || r === "administrator") return "administrador";
   if (r === "employee" || r === "staff") return "empleado";
-  return r; // "administrador", "empleado", etc.
+  return r;
 };
 
 const getRol = () =>
@@ -48,13 +48,14 @@ const RoleRoute = ({ allowed = [], children }) => {
     : <h1 className="container mt-4">403 — No autorizado</h1>;
 };
 
-const basename = process.env.BASENAME || "";
+// ⚠️ Forzamos basename vacío para que una env var en Render no mueva rutas
+const basename = ""; // <-- antes: process.env.BASENAME || ""
 
 const Layout = () => (
   <BrowserRouter basename={basename}>
     <NavbarSW />
     <Routes>
-      {/* Portada pública con tarjetas */}
+      {/* Portada */}
       <Route path="/" element={<Home />} />
 
       {/* Públicas */}
@@ -79,8 +80,11 @@ const Layout = () => (
       <Route path="/informes/entradas" element={<RoleRoute allowed={["administrador"]}><ResumenEntradas /></RoleRoute>} />
       <Route path="/informes/salidas" element={<RoleRoute allowed={["administrador"]}><HistorialSalidas /></RoleRoute>} />
 
-      {/* 404 */}
-      <Route path="*" element={<h1>Not found!</h1>} />
+      {/* Neutraliza cualquier /demo viejo que venga de builds antiguos */}
+      <Route path="/demo" element={<Navigate to="/" replace />} /> {/* <-- NUEVO */}
+
+      {/* 404 → Home para no confundir en prod */}
+      <Route path="*" element={<Navigate to="/" replace />} />     {/* <-- CAMBIO */}
     </Routes>
   </BrowserRouter>
 );
