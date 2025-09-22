@@ -4,23 +4,31 @@ services:
     env: python
     region: frankfurt
     plan: free
-    buildCommand: pip install -r src/requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
     startCommand: gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT src.wsgi:app
+    postDeployCommand: |
+      python -m flask db upgrade
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: FLASK_APP
+        value: src/app.py
       - key: DATABASE_URL
-        sync: false
+        sync: false          # la pones tú en el panel (Internal URL de tu Postgres)
       - key: JWT_SECRET_KEY
         generateValue: true
-      - key: CORS_ORIGIN
+      - key: SECRET_KEY
+        generateValue: true
+      - key: TZ
+        value: Europe/Madrid
+      # CORS: el backend leerá esta variable y la aplicará
+      - key: CORS_ORIGINS
         fromService:
           type: static_site
           name: specialwash-frontend
           property: url
-      - key: FLASK_ENV
-        value: production
 
   - type: static_site
     name: specialwash-frontend
@@ -28,8 +36,8 @@ services:
     region: frankfurt
     buildCommand: |
       cd frontend
-      npm install
-      npm run build
+      yarn install --frozen-lockfile
+      yarn build
     staticPublishPath: frontend/build
     envVars:
       - key: REACT_APP_BACKEND_URL
