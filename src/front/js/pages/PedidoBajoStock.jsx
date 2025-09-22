@@ -225,19 +225,7 @@ export default function PedidoBajoStock() {
           </div>
         </div>
 
-        {/* Firmas */}
-        <div className="sign-boxes">
-          <div className="sign-box">
-            <div><strong>Pedido por:</strong> ____________________________</div>
-            <div className="sign-line" />
-            <div><small>Nombre y firma</small></div>
-          </div>
-          <div className="sign-box">
-            <div><strong>Aprobado por:</strong> __________________________</div>
-            <div className="sign-line" />
-            <div><small>Nombre y firma</small></div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );
