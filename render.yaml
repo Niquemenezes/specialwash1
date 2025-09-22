@@ -1,24 +1,37 @@
 services:
+  # =========================
+  # Backend Flask (Web Service)
+  # =========================
   - type: web
-    name: specialwash1
+    name: specialwash-backend
     env: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn src.app:app
     plan: free
-    branch: main
-    autoDeploy: true
-
-    buildCommand: |
-      pip install -r requirements.txt
-
-    startCommand: >
-      gunicorn -w 4 -k gthread -b 0.0.0.0:$PORT src.app:app
-
-    # Corre migraciones ANTES de publicar cada deploy
-    preDeployCommand: |
-      flask db upgrade
-
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.8
-      - key: FLASK_ENV
-        value: production
-      # Define el resto (JWT_SECRET_KEY, DATABASE_URL, etc.) desde el panel
+        value: 3.11
+      # ------- AJUSTA ESTAS VARIABLES -------
+      - key: JWT_SECRET_KEY
+        value: change-me-in-prod
+      - key: DATABASE_URL
+        # Ej: postgres://user:pass@host:5432/db  (Render te da una URL si creas su Postgres)
+        value: ""
+      # Para tu CORS dinámico en app.py
+      # (pon aquí la URL del frontend cuando lo tengas desplegado, p.ej. https://specialwash-frontend.onrender.com)
+      - key: FRONTEND_ORIGIN
+        value: ""
+
+  # =========================
+  # Frontend React (Static Site)
+  # =========================
+  - type: static
+    name: specialwash-frontend
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # El front usará esta URL para llamar a la API
+      - key: REACT_APP_BACKEND_URL
+        value: https://specialwash-backend.onrender.com

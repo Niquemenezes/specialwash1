@@ -1,29 +1,15 @@
 {
   "name": "specialwash-frontend",
-  "engines": {
-    "node": "20.x"
-  },
   "version": "1.0.1",
   "description": "",
   "main": "index.js",
+  "engines": { "node": "20.x" },
   "scripts": {
     "start": "webpack-dev-server --config webpack.dev.js --port 3000",
-    "build": "webpack --config webpack.prod.js"
+    "build": "webpack --config webpack.prod.js",
+    "deploy": "npm run build"
   },
-  "author": {
-    "name": "Alejandro Sanchez",
-    "url": "http://alesanchezr.com/"
-  },
-  "contributors": [
-    {
-      "name": "Alejandro Sanchez",
-      "url": "http://alesanchezr.com/"
-    },
-    {
-      "name": "Ignacio Cordoba",
-      "url": "http://github.com/nachovz"
-    }
-  ],
+  "author": { "name": "Monique Menezes" },
   "license": "ISC",
   "devDependencies": {
     "@babel/cli": "^7.16.0",
@@ -58,18 +44,10 @@
     "webpack-merge": "^5.8.0"
   },
   "babel": {
-    "presets": [
-      "@babel/preset-env",
-      "@babel/preset-react"
-    ],
+    "presets": ["@babel/preset-env", "@babel/preset-react"],
     "plugins": [
       "@babel/plugin-proposal-class-properties",
-      [
-        "@babel/plugin-transform-runtime",
-        {
-          "regenerator": true
-        }
-      ]
+      ["@babel/plugin-transform-runtime", { "regenerator": true }]
     ]
   },
   "dependencies": {
