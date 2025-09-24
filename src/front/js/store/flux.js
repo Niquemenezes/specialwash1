@@ -40,7 +40,6 @@ const getState = ({ getStore, getActions, setStore }) => {
     const resp = await fetch(url, {
       method,
       headers: finalHeaders,
-      credentials: "include",
       body: json && body && typeof body !== "string" ? JSON.stringify(body) : body,
     });
 
