@@ -2,19 +2,40 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
 import ProductoFormModal from "../component/ProductoFormModal.jsx";
+import { useNavigate } from "react-router-dom"; 
 
 export default function ProductosPage() {
   const { store, actions } = useContext(Context);
 
   const [filtro, setFiltro] = useState("");
+  const [soloBajoStock, setSoloBajoStock] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null); // null => crear, objeto => editar
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
+  // Carga inicial (solo si hay token)
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
+        const token =
+          (typeof sessionStorage !== "undefined" && sessionStorage.getItem("token")) ||
+          (typeof localStorage !== "undefined" && localStorage.getItem("token"));
+
+        if (!token) {
+          // sin token → a login
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+          return;
+        }
+
+        // opcional: validar sesión y refrescar user/rol
+        try {
+          await actions.me?.();
+        } catch { /* no-op */ }
+
         await actions.getProductos();
       } finally {
         setLoading(false);
@@ -25,22 +46,37 @@ export default function ProductosPage() {
 
   const productos = store.productos || [];
 
+  // Lista con búsqueda + (opcional) filtro de bajo stock
   const productosFiltrados = useMemo(() => {
     const term = filtro.trim().toLowerCase();
-    if (!term) return productos;
-    return productos.filter(
-      (p) =>
-        (p.nombre || "").toLowerCase().includes(term) ||
-        (p.categoria || "").toLowerCase().includes(term)
-    );
-  }, [productos, filtro]);
+    let list = productos;
 
-  const bajosDeStock = useMemo(
-    () =>
-      productos.filter(
+    if (term) {
+      list = list.filter(
+        (p) =>
+          (p?.nombre || "").toLowerCase().includes(term) ||
+          (p?.categoria || "").toLowerCase().includes(term)
+      );
+    }
+
+    if (soloBajoStock) {
+      list = list.filter(
         (p) =>
           p?.stock_minimo != null &&
-          Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0)
+          Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0) // ≤ incluye "en el mínimo"
+      );
+    }
+
+    return list;
+  }, [productos, filtro, soloBajoStock]);
+
+  // Cálculo global: cuántos están en bajo stock
+  const bajosDeStock = useMemo(
+    () =>
+      (productos || []).filter(
+        (p) =>
+          p?.stock_minimo != null &&
+          Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0)
       ),
     [productos]
   );
@@ -56,7 +92,12 @@ export default function ProductosPage() {
 
   const onSaved = async () => {
     setShowModal(false);
-    await actions.getProductos();
+    setLoading(true);
+    try {
+      await actions.getProductos();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onDelete = async (id) => {
@@ -69,11 +110,37 @@ export default function ProductosPage() {
     }
   };
 
+  const recargar = async () => {
+    setLoading(true);
+    try {
+      await actions.getProductos();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container py-4">
+      {/* Encabezado + Controles */}
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <h2 className="mb-0">Productos</h2>
-        <div className="d-flex gap-2">
+
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          {/* Filtro: solo bajo stock */}
+          <div className="form-check me-2">
+            <input
+              id="solo-bajo"
+              className="form-check-input"
+              type="checkbox"
+              checked={soloBajoStock}
+              onChange={(e) => setSoloBajoStock(e.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="solo-bajo">
+              Solo bajo stock
+            </label>
+          </div>
+
+          {/* Búsqueda */}
           <input
             className="form-control"
             style={{ minWidth: 260 }}
@@ -81,18 +148,44 @@ export default function ProductosPage() {
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
           />
+
+          {/* Botón crear */}
           <button className="btn btn-primary" onClick={openCrear}>
             + Nuevo producto
+          </button>
+
+          {/* Recargar */}
+          <button className="btn btn-outline-secondary" onClick={recargar} disabled={loading}>
+            {loading ? "Cargando…" : "Recargar"}
           </button>
         </div>
       </div>
 
-      {/* Aviso de stock bajo */}
+      {/* Badges de resumen */}
+      <div className="d-flex align-items-center gap-2 mb-3">
+        <span className="badge text-bg-secondary">Total: {productos.length}</span>
+        <span className="badge text-bg-danger">Bajo stock: {bajosDeStock.length}</span>
+        {soloBajoStock && (
+          <span className="badge text-bg-info">
+            Mostrando solo {productosFiltrados.length}
+          </span>
+        )}
+      </div>
+      {bajosDeStock.length > 0 && (
+  <button
+    className="btn btn-outline-dark"
+    onClick={() => navigate("/pedido-bajo-stock")}
+  >
+    📄 Generar pedido con {bajosDeStock.length} producto(s) bajo stock
+  </button>
+)}
+
+      {/* Aviso de bajo stock (global, no depende del filtro) */}
       {bajosDeStock.length > 0 && (
         <div className="alert alert-warning d-flex align-items-start" role="alert">
-          <div className="me-2">⚠️</div>
+          <div className="me-2" aria-hidden>⚠️</div>
           <div>
-            <strong>{bajosDeStock.length}</strong> producto(s) con stock por debajo del mínimo.
+            <strong>{bajosDeStock.length}</strong> producto(s) con stock en o por debajo del mínimo.
             <details className="mt-1">
               <summary>Ver detalle</summary>
               <ul className="mb-0 mt-2">
@@ -110,6 +203,7 @@ export default function ProductosPage() {
         </div>
       )}
 
+      {/* Tabla */}
       <div className="card">
         <div className="table-responsive">
           <table className="table align-middle mb-0">
@@ -142,7 +236,9 @@ export default function ProductosPage() {
                 <tr>
                   <td colSpan={6} className="text-center text-muted py-4">
                     No hay productos{" "}
-                    {filtro ? "que coincidan con la búsqueda." : "registrados todavía."}
+                    {filtro || soloBajoStock
+                      ? "que coincidan con los filtros."
+                      : "registrados todavía."}
                   </td>
                 </tr>
               )}
@@ -151,9 +247,9 @@ export default function ProductosPage() {
                 productosFiltrados.map((p) => {
                   const bajo =
                     p?.stock_minimo != null &&
-                    Number(p.stock_actual ?? 0) < Number(p.stock_minimo ?? 0);
+                    Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0);
                   return (
-                    <tr key={p.id}>
+                    <tr key={p.id} className={bajo ? "table-warning" : ""}>
                       <td className="text-muted">#{p.id}</td>
                       <td>
                         <div className="fw-semibold">{p.nombre}</div>
@@ -192,6 +288,7 @@ export default function ProductosPage() {
         </div>
       </div>
 
+      {/* Modal crear/editar */}
       {showModal && (
         <ProductoFormModal
           show={showModal}

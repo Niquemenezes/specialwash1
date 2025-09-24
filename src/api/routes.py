@@ -244,7 +244,27 @@ def proveedores_delete(pid):
 @api.route("/productos", methods=["GET"])
 @jwt_required()
 def productos_list():
-    return jsonify([p.to_dict() for p in Producto.query.order_by(Producto.nombre).all()])
+    bajo_stock = (request.args.get("bajo_stock", "").lower() in ("1","true","yes"))
+    q = (request.args.get("q") or "").strip().lower()
+    categoria = (request.args.get("categoria") or "").strip()
+
+    query = Producto.query
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            (Producto.nombre.ilike(like)) | (Producto.categoria.ilike(like))
+        )
+    if categoria:
+        query = query.filter(Producto.categoria == categoria)
+
+    if bajo_stock:
+        # incluye “en el mínimo”
+        query = query.filter(Producto.stock_actual <= Producto.stock_minimo)
+
+    items = query.order_by(Producto.nombre).all()
+    return jsonify([p.to_dict() for p in items])
+
 
 
 @api.route("/productos", methods=["POST"])

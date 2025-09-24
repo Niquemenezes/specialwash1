@@ -40,7 +40,6 @@ const getState = ({ getStore, getActions, setStore }) => {
     const resp = await fetch(url, {
       method,
       headers: finalHeaders,
-      credentials: "include",
       body: json && body && typeof body !== "string" ? JSON.stringify(body) : body,
     });
 
@@ -267,20 +266,26 @@ const getState = ({ getStore, getActions, setStore }) => {
       },
 
       // ===== PRODUCTOS
-      getProductos: async () => {
-        if (_loadingProductos) return getStore().productos;
-        _loadingProductos = true;
-        try {
-          const data = await apiFetch("/api/productos");
-          setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
-          return getStore().productos;
-        } catch (err) {
-          console.error("getProductos:", err);
-          return [];
-        } finally {
-          _loadingProductos = false;
-        }
-      },
+      getProductos: async (opts = {}) => {
+  if (_loadingProductos) return getStore().productos;
+  _loadingProductos = true;
+  try {
+    const params = new URLSearchParams();
+    if (opts.bajo_stock) params.set("bajo_stock", "true");
+    if (opts.q) params.set("q", opts.q);
+    if (opts.categoria) params.set("categoria", opts.categoria);
+
+    const data = await apiFetch(`/api/productos${params.toString() ? `?${params}` : ""}`);
+    setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
+    return getStore().productos;
+  } catch (err) {
+    console.error("getProductos:", err);
+    return [];
+  } finally {
+    _loadingProductos = false;
+  }
+},
+
 
       getProductosCatalogo: async () => {
         return getActions().getProductos();

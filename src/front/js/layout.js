@@ -17,6 +17,7 @@ import Proveedores from "./pages/proveedores";
 import Maquinaria from "./pages/maquinaria";
 import ResumenEntradas from "./pages/ResumenEntradas.jsx";
 import HistorialSalidas from "./pages/HistorialSalidas.jsx";
+import PedidoBajoStock from "./pages/PedidoBajoStock.jsx";
 
 // ===== Helpers de sesión / rol =====
 const normalizeRol = (r) => {
@@ -78,6 +79,7 @@ const Layout = () => (
       <Route path="/maquinaria" element={<RoleRoute allowed={["administrador"]}><Maquinaria /></RoleRoute>} />
       <Route path="/informes/entradas" element={<RoleRoute allowed={["administrador"]}><ResumenEntradas /></RoleRoute>} />
       <Route path="/informes/salidas" element={<RoleRoute allowed={["administrador"]}><HistorialSalidas /></RoleRoute>} />
+      <Route element={<PedidoBajoStock />} path="/pedido-bajo-stock" />
 
       {/* 404 */}
       <Route path="*" element={<h1>Not found!</h1>} />
