@@ -7,7 +7,8 @@ services:
     env: python
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn src.app:app
+    startCommand: gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
+    preDeployCommand: flask db upgrade
     plan: free
     envVars:
       - key: PYTHON_VERSION
