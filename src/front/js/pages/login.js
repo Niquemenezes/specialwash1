@@ -1,62 +1,105 @@
-import React, { useContext, useState } from "react";
+// src/pages/login.jsx
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Context } from "../store/appContext";
+
+const normalizeRol = (r) => {
+  r = (r || "").toLowerCase().trim();
+  if (r === "admin" || r === "administrator") return "administrador";
+  if (r === "employee" || r === "staff") return "empleado";
+  if (r === "manager" || r === "responsable") return "encargado";
+  return r;
+};
 
 export default function Login() {
-  const { actions } = useContext(Context);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
+  const [rol, setRol] = useState("empleado"); // default
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const BACKEND = process.env.REACT_APP_BACKEND_URL?.replace(/\/+$/, "") || "";
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setErr("");
+    setError("");
+    setLoading(true);
+    try {
+      const url = `${BACKEND}/api/auth/login_json`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // El backend ignora "rol" para validar credenciales,
+        // pero normalizamos en front para navegación posterior:
+        body: JSON.stringify({ email, password }),
+      });
 
-    const res = await actions.login(email, password); // usa /auth/login_json
-    if (!res?.ok) {
-      setErr(res?.error || "Login inválido");
-      return;
+      // Captura errores no-2xx con mensaje claro
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data?.msg || `Error ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      const token = data?.token;
+      const user = data?.user || {};
+      const role = normalizeRol(user?.rol);
+
+      if (!token || !role) throw new Error("Respuesta de login inválida.");
+
+      // Guarda token y rol (como ya usas en PrivateRoute/Navbar/Home)
+      sessionStorage.setItem("token", token);
+      sessionStorage.setItem("rol", role);
+      localStorage.setItem("token", token);
+      localStorage.setItem("rol", role);
+
+      // Redirección por rol
+      if (role === "administrador") navigate("/productos", { replace: true });
+      else navigate("/salidas", { replace: true });
+    } catch (err) {
+      // Diferenciar fallo de red (Failed to fetch) de 4xx del backend
+      const msg = String(err?.message || err);
+      if (msg.includes("Failed to fetch")) {
+        setError("No se pudo conectar con el servidor. Revisa REACT_APP_BACKEND_URL y CORS.");
+      } else {
+        setError(msg || "Error en login.");
+      }
+    } finally {
+      setLoading(false);
     }
-
-    // guarda token/rol (el action ya te los devuelve)
-    if (res.token) {
-      sessionStorage.setItem("token", res.token);
-      localStorage.setItem("token", res.token);
-    }
-    const rol = (res.user?.rol || "empleado").toLowerCase();
-    sessionStorage.setItem("rol", rol);
-    localStorage.setItem("rol", rol);
-
-    // ⬇️ Ir a Home (portada con tarjetas)
-    navigate("/", { replace: true });
   };
 
   return (
-    <div className="container mt-4" style={{ maxWidth: 420 }}>
-      <h2>Iniciar sesión</h2>
-      {err && <div className="alert alert-danger">{err}</div>}
-      <form onSubmit={onSubmit}>
+    <div className="container py-4" style={{ maxWidth: 420 }}>
+      <h1 className="h3 mb-3">Iniciar sesión</h1>
+
+      <form onSubmit={onSubmit} className="card p-3 shadow-sm">
         <div className="mb-3">
           <label className="form-label">Email</label>
-          <input
-            className="form-control"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-          />
+          <input className="form-control" type="email" value={email}
+                 onChange={(e) => setEmail(e.target.value)} required />
         </div>
+
         <div className="mb-3">
           <label className="form-label">Contraseña</label>
-          <input
-            type="password"
-            className="form-control"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
+          <input className="form-control" type="password" value={password}
+                 onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        <button className="btn btn-primary w-100">Entrar</button>
+
+        <div className="mb-3">
+          <label className="form-label">Rol</label>
+          <select className="form-select" value={rol} onChange={(e) => setRol(e.target.value)}>
+            <option value="administrador">Administrador</option>
+            <option value="empleado">Empleado</option>
+            <option value="encargado">Encargado</option>
+          </select>
+        </div>
+
+        {error && <div className="alert alert-danger py-2">{error}</div>}
+
+        <button className="btn btn-dark w-100" disabled={loading}>
+          {loading ? "Entrando..." : "Entrar"}
+        </button>
       </form>
     </div>
   );

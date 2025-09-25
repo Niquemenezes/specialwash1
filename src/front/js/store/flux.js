@@ -1,7 +1,10 @@
 // src/front/js/store/flux.js — SpecialWash (roles + módulos + candados anti-bucle)
 
 const getState = ({ getStore, getActions, setStore }) => {
-  const API = process.env.REACT_APP_BACKEND_URL || "https://congenial-space-xylophone-569v6grv5rxcvw64-3001.app.github.dev/";
+  // Base normalizada (sin barras al final)
+  const BASE = (process.env.REACT_APP_BACKEND_URL ||
+    "https://congenial-space-xylophone-569v6grv5rxcvw64-3001.app.github.dev"
+  ).replace(/\/+$/, "");
 
   // ====== Candados simples para evitar múltiples fetch en StrictMode/re-montajes ======
   let _loadingUsuarios = false;
@@ -23,7 +26,10 @@ const getState = ({ getStore, getActions, setStore }) => {
     } = {}
   ) {
     const store = getStore();
-    const url = path.startsWith("http") ? path : `${API}${path}`;
+    const url = path.startsWith("http")
+      ? path
+      : `${BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+
     const finalHeaders = { ...headers };
 
     if (json && !finalHeaders["Content-Type"] && method !== "GET" && method !== "HEAD") {
@@ -49,6 +55,7 @@ const getState = ({ getStore, getActions, setStore }) => {
 
     if (!resp.ok) {
       const msg = (data && (data.msg || data.message)) || `HTTP ${resp.status}`;
+      console.error("apiFetch error:", { url, status: resp.status, msg, data });
       throw new Error(msg);
     }
     return data;
@@ -93,6 +100,9 @@ const getState = ({ getStore, getActions, setStore }) => {
       historialSalidas: [],
       reporteGasto: { totales: { sin_iva: 0, con_iva: 0 }, mensual: [] },
 
+      // Alertas
+      maquinariaAlertas: [],
+
       message: null,
     },
 
@@ -114,27 +124,9 @@ const getState = ({ getStore, getActions, setStore }) => {
             auth: false,
             body: { nombre, email, password, rol },
           });
-          // No guardamos token ni auth aquí a propósito
           return { ok: true };
         } catch (err) {
           console.error("signup:", err);
-          return { ok: false, error: err.message };
-        }
-      },
-      // (opcional) loginCookie si usas cookie-only
-      loginCookie: async (email, password) => {
-        try {
-          const data = await apiFetch("/api/auth/login", {
-            method: "POST",
-            auth: false,
-            body: { email, password },
-          });
-          const { token, user } = saveTokenAndUser(data);
-          setStore({ token, auth: true, user });
-          return { ok: true };
-        } catch (err) {
-          console.error("loginCookie:", err);
-          setStore({ auth: false });
           return { ok: false, error: err.message };
         }
       },
@@ -145,8 +137,7 @@ const getState = ({ getStore, getActions, setStore }) => {
           const data = await apiFetch("/api/auth/login_json", {
             method: "POST",
             auth: false,
-            // el backend no necesita rol aquí, pero no molesta
-            body: { email, password, rol },
+            body: { email, password, rol }, // rol opcional
           });
           const { token, user } = saveTokenAndUser(data);
           setStore({ token, auth: true, user });
@@ -267,25 +258,24 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       // ===== PRODUCTOS
       getProductos: async (opts = {}) => {
-  if (_loadingProductos) return getStore().productos;
-  _loadingProductos = true;
-  try {
-    const params = new URLSearchParams();
-    if (opts.bajo_stock) params.set("bajo_stock", "true");
-    if (opts.q) params.set("q", opts.q);
-    if (opts.categoria) params.set("categoria", opts.categoria);
+        if (_loadingProductos) return getStore().productos;
+        _loadingProductos = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.bajo_stock) params.set("bajo_stock", "true");
+          if (opts.q) params.set("q", opts.q);
+          if (opts.categoria) params.set("categoria", opts.categoria);
 
-    const data = await apiFetch(`/api/productos${params.toString() ? `?${params}` : ""}`);
-    setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
-    return getStore().productos;
-  } catch (err) {
-    console.error("getProductos:", err);
-    return [];
-  } finally {
-    _loadingProductos = false;
-  }
-},
-
+          const data = await apiFetch(`/api/productos${params.toString() ? `?${params}` : ""}`);
+          setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
+          return getStore().productos;
+        } catch (err) {
+          console.error("getProductos:", err);
+          return [];
+        } finally {
+          _loadingProductos = false;
+        }
+      },
 
       getProductosCatalogo: async () => {
         return getActions().getProductos();
@@ -302,7 +292,6 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       updateProducto: async (id, producto) => {
         try {
-          // Asegura tipos numéricos válidos si vienen como string
           const payload = { ...producto };
 
           if (payload.stock_minimo !== undefined) {
@@ -470,6 +459,18 @@ const getState = ({ getStore, getActions, setStore }) => {
           setStore({ maquinaria: maquinaria.filter(m => m.id !== id) });
           return true;
         } catch (err) { console.error("deleteMaquina:", err); throw err; }
+      },
+
+      getMaquinariaAlertas: async () => {
+        try {
+          const data = await apiFetch("/api/maquinaria/alertas");
+          setStore({ maquinariaAlertas: data });
+          return data;
+        } catch (err) {
+          console.error("getMaquinariaAlertas:", err);
+          setStore({ maquinariaAlertas: [] });
+          return [];
+        }
       },
 
       // ===== Reporte extra opcional

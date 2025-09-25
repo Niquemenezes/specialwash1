@@ -563,8 +563,26 @@ def salidas_historial():
 @api.route("/maquinaria", methods=["GET"])
 @jwt_required()
 def maquinaria_list():
+    # Si pasas ?alertas=1 devuelve sólo las próximas a vencer en <=30 días
+    solo_alertas = (request.args.get("alertas", "").lower() in ("1", "true", "yes"))
     q = Maquinaria.query.order_by(Maquinaria.id.desc()).all()
-    return jsonify([m.to_dict() for m in q]), 200
+    items = [m.to_dict() for m in q]
+    if solo_alertas:
+        items = [x for x in items if x.get("garantia_en_alerta")]
+    return jsonify(items), 200
+
+
+@api.route("/maquinaria/alertas", methods=["GET"])
+@jwt_required()
+def maquinaria_alertas():
+    """Atajo que devuelve únicamente máquinas cuya garantía vence en ≤30 días."""
+    q = Maquinaria.query.order_by(Maquinaria.id.desc()).all()
+    data = []
+    for m in q:
+        if m.en_alerta_garantia():
+            d = m.to_dict()
+            data.append(d)
+    return jsonify(data), 200
 
 
 @api.route("/maquinaria", methods=["POST"])
@@ -584,6 +602,10 @@ def maquinaria_create():
         ubicacion=(data.get("ubicacion") or "").strip() or None,
         estado=(data.get("estado") or "").strip() or None,
         fecha_compra=_parse_date(data.get("fecha_compra")),
+        # NUEVOS CAMPOS
+        numero_factura=(data.get("numero_factura") or "").strip() or None,
+        tienda=(data.get("tienda") or "").strip() or None,
+        fecha_garantia_fin=_parse_date(data.get("fecha_garantia_fin")),
         notas=(data.get("notas") or "").strip() or None,
     )
     db.session.add(m)
@@ -603,13 +625,16 @@ def maquinaria_update(mid):
             return jsonify({"msg": "Nombre requerido"}), 400
         m.nombre = nombre
 
-    for k in ("tipo", "marca", "modelo", "numero_serie", "ubicacion", "estado", "notas"):
+    for k in ("tipo", "marca", "modelo", "numero_serie", "ubicacion", "estado", "notas", "tienda", "numero_factura"):
         if k in data:
             v = (data.get(k) or "").strip()
             setattr(m, k, v or None)
 
     if "fecha_compra" in data:
         m.fecha_compra = _parse_date(data.get("fecha_compra"))
+
+    if "fecha_garantia_fin" in data:
+        m.fecha_garantia_fin = _parse_date(data.get("fecha_garantia_fin"))
 
     db.session.commit()
     return jsonify(m.to_dict()), 200

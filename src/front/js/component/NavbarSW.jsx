@@ -28,10 +28,12 @@ const NavbarSW = () => {
         credentials: "include",
       });
     } catch (_) {}
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("rol");
-    localStorage.removeItem("token");
-    localStorage.removeItem("rol");
+    try {
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("rol");
+      localStorage.removeItem("token");
+      localStorage.removeItem("rol");
+    } catch (_) {}
     navigate("/login", { replace: true });
   };
 
@@ -74,9 +76,6 @@ const NavbarSW = () => {
                 </li>
                 <li className="nav-item">
                   <NavLink to="/historial-salidas" className="nav-link sw-navlink">Historial salidas</NavLink>
-                </li>
-                <li className="nav-item">
-                  <NavLink to="/empleados" className="nav-link sw-navlink">Usuarios</NavLink>
                 </li>
                 <li className="nav-item">
                   <NavLink to="/maquinaria" className="nav-link sw-navlink">Maquinaria</NavLink>

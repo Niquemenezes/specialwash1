@@ -126,6 +126,11 @@ const Layout = () => (
           </PrivateRoute>
         }
       />
+      <Route path="/entradas/registrar" element={<Navigate to="/entradas" replace />} />
+<Route path="/salidas/registrar" element={<Navigate to="/salidas" replace />} />
+<Route path="/informes/entradas" element={<Navigate to="/resumen-entradas" replace />} />
+<Route path="/informes/salidas" element={<Navigate to="/historial-salidas" replace />} />
+
 
       {/* Pedido bajo stock: SOLO admin */}
       <Route

@@ -1,7 +1,7 @@
 # src/api/models.py
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-from sqlalchemy.sql import func
+from datetime import datetime, date, timedelta
+from sqlalchemy import func
 from sqlalchemy.orm import relationship
 
 db = SQLAlchemy()
@@ -9,7 +9,6 @@ db = SQLAlchemy()
 # ----------------------------
 # Helpers
 # ----------------------------
-
 def iso(dt):
     """Devuelve ISO 8601 o None. Acepta date/datetime."""
     if not dt:
@@ -18,7 +17,6 @@ def iso(dt):
         return dt.isoformat()
     except Exception:
         return str(dt)
-
 
 # ----------------------------
 # User
@@ -47,7 +45,6 @@ class User(db.Model):
 
     def __repr__(self):
         return f"<User {self.id} {self.email}>"
-
 
 # ----------------------------
 # Proveedor
@@ -81,7 +78,6 @@ class Proveedor(db.Model):
     def __repr__(self):
         return f"<Proveedor {self.id} {self.nombre}>"
 
-
 # ----------------------------
 # Producto
 # ----------------------------
@@ -94,7 +90,6 @@ class Producto(db.Model):
     stock_minimo = db.Column(db.Integer, default=0)
     stock_actual = db.Column(db.Integer, default=0)
 
-    # opcionales si quieres trazabilidad
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
     # relaciones
@@ -114,7 +109,6 @@ class Producto(db.Model):
     def __repr__(self):
         return f"<Producto {self.id} {self.nombre}>"
 
-
 # ----------------------------
 # Entrada (registro de entradas de producto)
 # ----------------------------
@@ -128,78 +122,47 @@ class Entrada(db.Model):
     proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"))
 
     # Timestamps
-    # Mantén 'fecha' si ya lo usas. Añadimos 'created_at' para orden estable desde BD.
     fecha = db.Column(db.DateTime(timezone=True), server_default=func.now())
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Datos
     cantidad = db.Column(db.Integer, nullable=False)
 
-    # Documentación / compatibilidad:
-    # Si ya tienes 'numero_albaran', lo mantenemos; en to_dict exportamos 'numero_documento'.
+    # Documentación
     numero_albaran = db.Column(db.String(120))
-    # Si ya tienes este campo en la DB, puedes descomentar/usar:
-    # tipo_documento = db.Column(db.String(20))
-    # numero_documento = db.Column(db.String(120))
 
     # Precios
-    # Tu esquema original:
-    precio_sin_iva = db.Column(db.Float)          # neto sin IVA
-    porcentaje_iva = db.Column(db.Float)          # %
-    valor_iva = db.Column(db.Float)               # importe calculado
-    precio_con_iva = db.Column(db.Float)          # total final
-
-    # Si también guardas bruto/desc. en otra tabla, ignóralo aquí.
-    # Si quieres añadirlos aquí, crea migración:
-    # precio_bruto_sin_iva = db.Column(db.Float)
-    # descuento_porcentaje = db.Column(db.Float)
-    # descuento_importe = db.Column(db.Float)
+    precio_sin_iva = db.Column(db.Float)
+    porcentaje_iva = db.Column(db.Float)
+    valor_iva = db.Column(db.Float)
+    precio_con_iva = db.Column(db.Float)
 
     # relaciones
     producto = relationship("Producto", back_populates="entradas", lazy="joined")
     proveedor = relationship("Proveedor", back_populates="entradas", lazy="joined")
 
     def to_dict(self):
-        """
-        Serialización consistente:
-        - Devuelve created_at (ISO) y alias fecha.
-        - 'numero_documento' usa 'numero_albaran' por compatibilidad con el frontend.
-        - Incluye nombres relacionados (producto/proveedor) si están disponibles.
-        """
-        # elige fecha preferente
         dt = self.fecha or self.created_at
         iso_dt = iso(dt)
-
         return {
             "id": self.id,
             "producto_id": self.producto_id,
             "producto_nombre": getattr(self.producto, "nombre", None),
             "proveedor_id": self.proveedor_id,
             "proveedor_nombre": getattr(self.proveedor, "nombre", None),
-
             "cantidad": self.cantidad,
-
-            # Documentos: compatibilidad
-            # Si tienes 'tipo_documento' / 'numero_documento' reales, añade aquí:
-            # "tipo_documento": self.tipo_documento,
-            # "numero_documento": self.numero_documento or self.numero_albaran,
-            "tipo_documento": None,  # si no existe la columna, mantenlo en None
+            "tipo_documento": None,  # compatibilidad
             "numero_documento": self.numero_albaran,
-
-            # Precios
             "precio_sin_iva": self.precio_sin_iva,
             "porcentaje_iva": self.porcentaje_iva,
             "valor_iva": self.valor_iva,
             "precio_con_iva": self.precio_con_iva,
-
-            # Fechas
             "created_at": iso_dt,
-            "fecha": iso_dt,  # alias que tu UI ya usa
+            "fecha": iso_dt,
         }
 
     def __repr__(self):
         return f"<Entrada {self.id} prod={self.producto_id} cant={self.cantidad}>"
-
 
 # ----------------------------
 # Salida (registro de salidas de producto)
@@ -208,7 +171,6 @@ class Salida(db.Model):
     __tablename__ = "salida"
 
     id = db.Column(db.Integer, primary_key=True)
-    # Mantén 'fecha' si ya lo usas; añadimos created_at para ordenar.
     fecha = db.Column(db.DateTime(timezone=True), server_default=func.now())
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -228,7 +190,7 @@ class Salida(db.Model):
         return {
             "id": self.id,
             "created_at": iso_dt,
-            "fecha": iso_dt,  # alias
+            "fecha": iso_dt,
             "producto_id": self.producto_id,
             "producto_nombre": getattr(self.producto, "nombre", None),
             "usuario_id": self.usuario_id,
@@ -239,7 +201,6 @@ class Salida(db.Model):
 
     def __repr__(self):
         return f"<Salida {self.id} prod={self.producto_id} cant={self.cantidad} usr={self.usuario_id}>"
-
 
 # ----------------------------
 # Maquinaria
@@ -256,9 +217,27 @@ class Maquinaria(db.Model):
     ubicacion = db.Column(db.String(120))
     estado = db.Column(db.String(50))
     fecha_compra = db.Column(db.Date)
-    notas = db.Column(db.Text)
 
+    # NUEVOS CAMPOS
+    numero_factura = db.Column(db.String(100))
+    tienda = db.Column(db.String(150))
+    fecha_garantia_fin = db.Column(db.Date)  # fecha exacta de fin de garantía
+
+    notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    # --- Helpers de garantía ---
+    def en_alerta_garantia(self):
+        """True si la garantía vence en <= 30 días (y aún no venció)."""
+        if not self.fecha_garantia_fin:
+            return False
+        hoy = date.today()
+        return hoy <= self.fecha_garantia_fin <= (hoy + timedelta(days=30))
+
+    def dias_restantes_garantia(self):
+        if not self.fecha_garantia_fin:
+            return None
+        return (self.fecha_garantia_fin - date.today()).days
 
     def to_dict(self):
         return {
@@ -271,6 +250,11 @@ class Maquinaria(db.Model):
             "ubicacion": self.ubicacion,
             "estado": self.estado,
             "fecha_compra": iso(self.fecha_compra),
+            "numero_factura": self.numero_factura,
+            "tienda": self.tienda,
+            "fecha_garantia_fin": iso(self.fecha_garantia_fin),
+            "garantia_en_alerta": self.en_alerta_garantia(),
+            "garantia_dias_restantes": self.dias_restantes_garantia(),
             "notas": self.notas,
             "created_at": iso(self.created_at),
         }

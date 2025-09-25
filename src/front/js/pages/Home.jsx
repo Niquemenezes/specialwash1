@@ -7,6 +7,7 @@ const normalizeRol = (r) => {
   r = (r || "").toString().toLowerCase().trim();
   if (r === "admin" || r === "administrator") return "administrador";
   if (r === "employee" || r === "staff") return "empleado";
+  if (r === "manager" || r === "responsable") return "encargado";
   return r;
 };
 
@@ -18,37 +19,42 @@ export default function Home() {
     (typeof localStorage !== "undefined" && localStorage.getItem("token")) ||
     null;
 
-  // 1) intenta sacar rol de store.user, si no, de storages
   const rolFromUser = normalizeRol(store?.user?.rol);
   const rolFromStorage = normalizeRol(
     (typeof sessionStorage !== "undefined" && sessionStorage.getItem("rol")) ||
-    (typeof localStorage !== "undefined" && localStorage.getItem("rol"))
+      (typeof localStorage !== "undefined" && localStorage.getItem("rol"))
   );
 
-  // 2) rol efectivo: si hay usuario en store, úsalo; sino storages; si aún no hay, asume "empleado"
+  // Rol efectivo: si hay user, usa ese; si no, storage; si no, asume "empleado"
   const rol = rolFromUser || rolFromStorage || "empleado";
 
-  // Si hay token pero no tenemos user en memoria, intenta cargarlo (esto sincroniza rol también)
+  // Si hay token pero no tenemos user, intenta cargarlo (sin romper SSR)
   useEffect(() => {
     if (token && !store.user) {
       actions.me().catch(() => {});
     }
   }, [token, store.user, actions]);
 
-  const tiles = useMemo(() => ([
-    { to: "/productos",           title: "Productos",           icon: "fa-box-open",      roles: ["empleado","administrador"] },
-    { to: "/entradas/registrar",  title: "Registrar Entrada",   icon: "fa-sign-in-alt",   roles: ["administrador"] },
-    { to: "/salidas/registrar",   title: "Registrar Salida",    icon: "fa-sign-out-alt",  roles: ["empleado","administrador"] },
-    { to: "/usuarios",            title: "Usuarios",            icon: "fa-user-friends",  roles: ["administrador"] },
-    { to: "/proveedores",         title: "Proveedores",         icon: "fa-file-alt",      roles: ["administrador"] },
-    { to: "/maquinaria",          title: "Maquinaria",          icon: "fa-cogs",          roles: ["administrador"] },
-    { to: "/informes/entradas",   title: "Informe Entradas",    icon: "fa-file-alt",      roles: ["administrador"] },
-    { to: "/informes/salidas",    title: "Historial Salidas",   icon: "fa-file-alt",      roles: ["administrador"] },
-  ]), []);
+  // Rutas alineadas con tu Layout actual
+  const tiles = useMemo(
+    () => [
+      // Productos SOLO admin (tu PrivateRoute ya lo exige)
+      { to: "/productos",          title: "Productos",         icon: "fa-box-open",     roles: ["administrador"] },
+      { to: "/entradas",           title: "Registrar Entrada", icon: "fa-sign-in-alt",  roles: ["administrador"] },
+      { to: "/salidas",            title: "Registrar Salida",  icon: "fa-sign-out-alt", roles: ["empleado", "encargado", "administrador"] },
+      { to: "/usuarios",           title: "Usuarios",          icon: "fa-user-friends", roles: ["administrador"] },
+      { to: "/proveedores",        title: "Proveedores",       icon: "fa-file-alt",     roles: ["administrador"] },
+      { to: "/maquinaria",         title: "Maquinaria",        icon: "fa-cogs",         roles: ["administrador"] },
+      { to: "/resumen-entradas",   title: "Resumen Entradas",  icon: "fa-file-alt",     roles: ["administrador"] },
+      { to: "/historial-salidas",  title: "Historial Salidas", icon: "fa-file-alt",     roles: ["administrador"] },
+      { to: "/mis-salidas",        title: "Mis salidas",       icon: "fa-list",         roles: ["empleado", "encargado"] },
+    ],
+    []
+  );
 
-  // Si NO hay token: mostramos todas las tarjetas (la página es pública)
-  // Si HAY token: filtramos según roles
-  const visibles = !token ? tiles : tiles.filter(t => t.roles.includes(rol));
+  // Si NO hay token: mostramos todas (página pública)
+  // Si HAY token: filtramos por rol
+  const visibles = !token ? tiles : tiles.filter((t) => t.roles.includes(rol));
 
   return (
     <div className="container py-4">
@@ -71,6 +77,22 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {Array.isArray(store.maquinariaAlertas) && store.maquinariaAlertas.length > 0 && (
+        <div className="alert alert-warning mt-3">
+          <strong>⚠ Garantías próximas a vencer (≤30 días):</strong>
+          <ul className="mb-0">
+            {store.maquinariaAlertas.map((m) => (
+              <li key={m.id}>
+                {m.nombre} — Fin: {m.fecha_garantia_fin || "—"}
+                {m.numero_factura ? ` | Factura: ${m.numero_factura}` : ""}
+                {m.tienda ? ` | Tienda: ${m.tienda}` : ""}
+                {typeof m.garantia_dias_restantes === "number" ? ` | ${m.garantia_dias_restantes} días` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!token && (
         <p className="text-center text-muted mt-3">
