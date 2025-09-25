@@ -37,7 +37,12 @@ if db_url.startswith("postgres://"):
 elif db_url.startswith("postgresql://") and "psycopg2" not in db_url:
     db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+db_url = os.getenv("DATABASE_URL", "sqlite:///dev.db").strip()
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+print(f">>> Using DB: {app.config['SQLALCHEMY_DATABASE_URI']}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # <- corregido el nombre
 app.config["JSON_SORT_KEYS"] = False
 
