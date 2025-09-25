@@ -40,7 +40,7 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({
-        favicon: 'specialwash.ico',
+        favicon: 'public/favicon.ico',
         template: 'template.html'
     }),
     new Dotenv({ systemvars: true, allowEmptyValues: true, silent: true, safe: false })
