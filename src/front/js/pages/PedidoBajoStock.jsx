@@ -8,13 +8,13 @@ export default function PedidoBajoStock() {
   const { store } = useContext(Context);
   const navigate = useNavigate();
 
-  // productos en bajo stock
+  // productos en bajo stock (SOLO por debajo del mínimo)
   const bajosDeStock = useMemo(
     () =>
       (store.productos || []).filter(
         (p) =>
           p?.stock_minimo != null &&
-          Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0)
+          Number(p?.stock_actual ?? 0) < Number(p?.stock_minimo ?? 0) // 👈 solo menor, no igual
       ),
     [store.productos]
   );
@@ -102,17 +102,12 @@ export default function PedidoBajoStock() {
 
         /* ---- Modo impresión ---- */
         @media print {
-          /* Ajuste de márgenes de página (opcional) */
           @page { margin: 15mm; }
-
-          /* Asegurar colores */
           body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: #fff !important;
           }
-
-          /* OCULTAR shell de la app: navbar, footers, menús, logout, etc. */
           header, footer,
           nav, .nav, .navbar, .navbar-brand, .navbar-nav, .app-navbar, .app-footer,
           .sidebar, .app-sidebar, .topbar, .breadcrumbs,
@@ -122,24 +117,17 @@ export default function PedidoBajoStock() {
             visibility: hidden !important;
             height: 0 !important; overflow: hidden !important;
           }
-
-          /* Oculta todo lo que no sea el contenido principal si quieres ser agresiva:
-             .app-shell > *:not(.container) { display:none !important; }  (si usas .app-shell)
-          */
-
           .container { max-width: 100% !important; }
           .pedido-sheet { box-shadow: none !important; padding: 0 !important; }
           .pedido-header { margin-bottom: 12px; }
           .pedido-table thead th { color: #fff !important; background: #000 !important; }
           .sign-line { width: 80% !important; }
-
-          /* Ocultar botones de la barra superior (Volver / Imprimir) */
           .actions-no-print { display: none !important; }
         }
       `}</style>
 
       <div className="pedido-sheet">
-        {/* Barra superior de acciones (no se imprime gracias a .actions-no-print) */}
+        {/* Barra superior de acciones (no se imprime) */}
         <div className="title-row actions-no-print">
           <div>
             <button
@@ -193,7 +181,7 @@ export default function PedidoBajoStock() {
                 {bajosDeStock.map((p) => {
                   const stock = Number(p?.stock_actual ?? 0);
                   const min = Number(p?.stock_minimo ?? 0);
-                  const sugerido = Math.max(0, min * 2 - stock); // ajusta política si quieres
+                  const sugerido = Math.max(0, min * 2 - stock); // política simple: reponer a 2× mínimo
                   return (
                     <tr key={p.id}>
                       <td>#{p.id}</td>

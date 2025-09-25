@@ -2,7 +2,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
 import ProductoFormModal from "../component/ProductoFormModal.jsx";
-import { useNavigate } from "react-router-dom"; 
+import { useNavigate } from "react-router-dom";
 
 export default function ProductosPage() {
   const { store, actions } = useContext(Context);
@@ -63,20 +63,20 @@ export default function ProductosPage() {
       list = list.filter(
         (p) =>
           p?.stock_minimo != null &&
-          Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0) // ≤ incluye "en el mínimo"
+          Number(p?.stock_actual ?? 0) < Number(p?.stock_minimo ?? 0) // 👈 solo POR DEBAJO
       );
     }
 
     return list;
   }, [productos, filtro, soloBajoStock]);
 
-  // Cálculo global: cuántos están en bajo stock
+  // Cálculo global: cuántos están por debajo del mínimo
   const bajosDeStock = useMemo(
     () =>
       (productos || []).filter(
         (p) =>
           p?.stock_minimo != null &&
-          Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0)
+          Number(p?.stock_actual ?? 0) < Number(p?.stock_minimo ?? 0) // 👈 solo POR DEBAJO
       ),
     [productos]
   );
@@ -171,21 +171,22 @@ export default function ProductosPage() {
           </span>
         )}
       </div>
+
       {bajosDeStock.length > 0 && (
-  <button
-    className="btn btn-outline-dark"
-    onClick={() => navigate("/pedido-bajo-stock")}
-  >
-    📄 Generar pedido con {bajosDeStock.length} producto(s) bajo stock
-  </button>
-)}
+        <button
+          className="btn btn-outline-dark"
+          onClick={() => navigate("/pedido-bajo-stock")}
+        >
+          📄 Generar pedido con {bajosDeStock.length} producto(s) bajo stock
+        </button>
+      )}
 
       {/* Aviso de bajo stock (global, no depende del filtro) */}
       {bajosDeStock.length > 0 && (
         <div className="alert alert-warning d-flex align-items-start" role="alert">
           <div className="me-2" aria-hidden>⚠️</div>
           <div>
-            <strong>{bajosDeStock.length}</strong> producto(s) con stock en o por debajo del mínimo.
+            <strong>{bajosDeStock.length}</strong> producto(s) con stock <u>por debajo</u> del mínimo.
             <details className="mt-1">
               <summary>Ver detalle</summary>
               <ul className="mb-0 mt-2">
@@ -247,7 +248,7 @@ export default function ProductosPage() {
                 productosFiltrados.map((p) => {
                   const bajo =
                     p?.stock_minimo != null &&
-                    Number(p?.stock_actual ?? 0) <= Number(p?.stock_minimo ?? 0);
+                    Number(p?.stock_actual ?? 0) < Number(p?.stock_minimo ?? 0); // 👈 solo POR DEBAJO
                   return (
                     <tr key={p.id} className={bajo ? "table-warning" : ""}>
                       <td className="text-muted">#{p.id}</td>

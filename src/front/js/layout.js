@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import injectContext from "./store/appContext";
 import NavbarSW from "./component/NavbarSW.jsx";
+import PrivateRoute from "./component/PrivateRoute.js";
 
 // Públicas
 import Login from "./pages/login";
@@ -19,35 +20,12 @@ import ResumenEntradas from "./pages/ResumenEntradas.jsx";
 import HistorialSalidas from "./pages/HistorialSalidas.jsx";
 import PedidoBajoStock from "./pages/PedidoBajoStock.jsx";
 
-// ===== Helpers de sesión / rol =====
-const normalizeRol = (r) => {
-  r = (r || "").toString().toLowerCase().trim();
-  if (r === "admin" || r === "administrator") return "administrador";
-  if (r === "employee" || r === "staff") return "empleado";
-  return r; // "administrador", "empleado", etc.
-};
-
-const getRol = () =>
-  normalizeRol(sessionStorage.getItem("rol") || localStorage.getItem("rol"));
-
+// ===== Helpers de sesión / redirecciones públicas =====
 const isLogged = () =>
   !!(sessionStorage.getItem("token") || localStorage.getItem("token"));
 
-// ===== Guards =====
 const RedirectIfLogged = ({ children }) =>
   isLogged() ? <Navigate to="/" replace /> : children;
-
-const PrivateRoute = ({ children }) =>
-  isLogged() ? children : <Navigate to="/login" replace />;
-
-const RoleRoute = ({ allowed = [], children }) => {
-  if (!isLogged()) return <Navigate to="/login" replace />;
-  const current = getRol();
-  const allowedNorm = allowed.map(normalizeRol);
-  return allowedNorm.includes(current)
-    ? children
-    : <h1 className="container mt-4">403 — No autorizado</h1>;
-};
 
 const basename = process.env.BASENAME || "";
 
@@ -55,34 +33,112 @@ const Layout = () => (
   <BrowserRouter basename={basename}>
     <NavbarSW />
     <Routes>
-      {/* Portada pública con tarjetas */}
+      {/* Portada pública */}
       <Route path="/" element={<Home />} />
 
       {/* Públicas */}
       <Route path="/login" element={<RedirectIfLogged><Login /></RedirectIfLogged>} />
       <Route path="/signup" element={<RedirectIfLogged><Signup /></RedirectIfLogged>} />
 
-      {/* Empleado/Admin */}
-      <Route path="/productos" element={
-        <RoleRoute allowed={["empleado","administrador"]}><ProductosPage /></RoleRoute>
-      } />
-      <Route path="/salidas/registrar" element={
-        <RoleRoute allowed={["empleado","administrador"]}><RegistrarSalidaPage /></RoleRoute>
-      } />
+      {/* ===== Rutas privadas por rol ===== */}
 
-      {/* Solo admin */}
-      <Route path="/entradas/registrar" element={
-        <RoleRoute allowed={["administrador"]}><RegistrarEntradaPage /></RoleRoute>
-      } />
-      <Route path="/usuarios" element={<RoleRoute allowed={["administrador"]}><Usuarios /></RoleRoute>} />
-      <Route path="/proveedores" element={<RoleRoute allowed={["administrador"]}><Proveedores /></RoleRoute>} />
-      <Route path="/maquinaria" element={<RoleRoute allowed={["administrador"]}><Maquinaria /></RoleRoute>} />
-      <Route path="/informes/entradas" element={<RoleRoute allowed={["administrador"]}><ResumenEntradas /></RoleRoute>} />
-      <Route path="/informes/salidas" element={<RoleRoute allowed={["administrador"]}><HistorialSalidas /></RoleRoute>} />
-      <Route element={<PedidoBajoStock />} path="/pedido-bajo-stock" />
+      {/* Registrar salida: admin + encargado + empleado */}
+      <Route
+        path="/salidas"
+        element={
+          <PrivateRoute allow={["administrador", "encargado", "empleado"]}>
+            <RegistrarSalidaPage />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Mis salidas: encargado + empleado */}
+      <Route
+        path="/mis-salidas"
+        element={
+          <PrivateRoute allow={["encargado", "empleado"]}>
+            <HistorialSalidas soloMias />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Productos: SOLO admin */}
+      <Route
+        path="/productos"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <ProductosPage />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Registrar entrada: SOLO admin */}
+      <Route
+        path="/entradas"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <RegistrarEntradaPage />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Usuarios / Proveedores / Maquinaria: SOLO admin */}
+      <Route
+        path="/usuarios"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <Usuarios />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/proveedores"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <Proveedores />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/maquinaria"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <Maquinaria />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Informes: SOLO admin (globales). 
+          Para empleados/encargados ya está /mis-salidas */}
+      <Route
+        path="/resumen-entradas"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <ResumenEntradas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/historial-salidas"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <HistorialSalidas />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Pedido bajo stock: SOLO admin */}
+      <Route
+        path="/pedido-bajo-stock"
+        element={
+          <PrivateRoute allow={["administrador"]}>
+            <PedidoBajoStock />
+          </PrivateRoute>
+        }
+      />
 
       {/* 404 */}
-      <Route path="*" element={<h1>Not found!</h1>} />
+      <Route path="*" element={<h1 className="container mt-4">Not found!</h1>} />
     </Routes>
   </BrowserRouter>
 );

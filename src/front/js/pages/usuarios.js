@@ -5,6 +5,7 @@ const normalizeRol = (r) => {
   r = (r || "").toLowerCase().trim();
   if (r === "admin" || r === "administrator") return "administrador";
   if (r === "employee" || r === "staff") return "empleado";
+  if (r === "manager" || r === "responsable") return "encargado";
   return r;
 };
 
@@ -135,6 +136,7 @@ export default function Usuarios() {
                 <select className="form-select" name="rol" value={form.rol} onChange={onChange} required>
                   <option value="empleado">Empleado</option>
                   <option value="administrador">Administrador</option>
+                  <option value="encargado">Encargado</option>
                 </select>
               </div>
               <div className="col-12 col-md-6">

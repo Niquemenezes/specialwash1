@@ -2,13 +2,24 @@ import React from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import logo from "../../img/logospecialwash.jpg";
 
+const getStored = (k) =>
+  (typeof sessionStorage !== "undefined" && sessionStorage.getItem(k)) ||
+  (typeof localStorage !== "undefined" && localStorage.getItem(k)) ||
+  "";
+
+const normalizeRol = (r) => {
+  r = (r || "").toLowerCase().trim();
+  if (r === "admin" || r === "administrator") return "administrador";
+  if (r === "employee" || r === "staff") return "empleado";
+  if (r === "manager" || r === "responsable") return "encargado";
+  return r;
+};
+
 const NavbarSW = () => {
   const navigate = useNavigate();
 
-  // token y rol (normalizado por si llega "admin")
-  const token = sessionStorage.getItem("token") || localStorage.getItem("token");
-  const rawRol = (sessionStorage.getItem("rol") || localStorage.getItem("rol") || "").toLowerCase();
-  const rol = rawRol === "admin" || rawRol === "administrator" ? "administrador" : rawRol;
+  const token = getStored("token");
+  const rol = normalizeRol(getStored("rol"));
 
   const handleLogout = async () => {
     try {
@@ -44,7 +55,47 @@ const NavbarSW = () => {
           <span className="brand-text">SpecialWash</span>
         </Link>
 
-        
+        {/* Menú central por rol */}
+        {token && (
+          <ul className="navbar-nav flex-row gap-3 ms-3">
+            {rol === "administrador" && (
+              <>
+                <li className="nav-item">
+                  <NavLink to="/productos" className="nav-link sw-navlink">Productos</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/entradas" className="nav-link sw-navlink">Registrar entrada</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/salidas" className="nav-link sw-navlink">Registrar salida</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/resumen-entradas" className="nav-link sw-navlink">Resumen entradas</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/historial-salidas" className="nav-link sw-navlink">Historial salidas</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/empleados" className="nav-link sw-navlink">Usuarios</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/maquinaria" className="nav-link sw-navlink">Maquinaria</NavLink>
+                </li>
+              </>
+            )}
+
+            {(rol === "empleado" || rol === "encargado") && (
+              <>
+                <li className="nav-item">
+                  <NavLink to="/salidas" className="nav-link sw-navlink">Registrar salida</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink to="/mis-salidas" className="nav-link sw-navlink">Mis salidas</NavLink>
+                </li>
+              </>
+            )}
+          </ul>
+        )}
 
         {/* Lado derecho */}
         <ul className="navbar-nav ms-auto flex-row">
@@ -58,7 +109,8 @@ const NavbarSW = () => {
               </li>
             </>
           ) : (
-            <li className="nav-item">
+            <li className="nav-item d-flex align-items-center gap-3">
+              <span className="text-light small">Rol: <strong>{rol || "—"}</strong></span>
               <button className="btn sw-btn-gold" onClick={handleLogout}>Cerrar sesión</button>
             </li>
           )}
