@@ -1,6 +1,6 @@
 import os
 from flask_admin import Admin
-from .models import db, User, Proveedor, Salida, Entrada, Producto, Maquinaria
+from .models import db, User, Proveedor, Salida, Entrada, Producto, Maquinaria, Cliente, Servicio, Vehiculo, Factura, ServicioRealizado
 from flask_admin.contrib.sqla import ModelView
 
 def setup_admin(app):
@@ -16,6 +16,11 @@ def setup_admin(app):
     admin.add_view(ModelView(Entrada, db.session))
     admin.add_view(ModelView(Proveedor, db.session))
     admin.add_view(ModelView(Maquinaria, db.session))
+    admin.add_view(ModelView(Cliente, db.session))
+    admin.add_view(ModelView(Servicio, db.session))
+    admin.add_view(ModelView(Vehiculo, db.session))
+    admin.add_view(ModelView(Factura, db.session))
+    admin.add_view(ModelView(ServicioRealizado, db.session))
     
     # Aquí puedes agregar más modelos a la interfaz de administración si lo necesitas
     # admin.add_view(ModelView(YourModelName, db.session, name='YourModelName')) 

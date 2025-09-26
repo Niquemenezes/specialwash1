@@ -9,16 +9,17 @@ from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flasgger import Swagger
 
-from api.utils import APIException, generate_sitemap
-from api.routes import api
-from api.admin import setup_admin
-from api.models import db  # importa db SOLO una vez
+from src.api.utils import APIException, generate_sitemap
+from src.api.routes import api
+from src.api.admin import setup_admin
+from src.api.models import db  # importa db SOLO una vez
 
 # ===== Cargar .env (local) =====
 load_dotenv()
 
 # ===== Crear la app =====
 app = Flask(__name__)
+
 
 # ===== Entorno / flags =====
 IS_PROD = (os.getenv("FLASK_ENV") == "production" or os.getenv("ENV") == "production")
@@ -162,7 +163,7 @@ def debug_info():
     })
 
 # ===== Comandos custom (si los tienes) =====
-from api.commands import setup_commands
+from src.api.commands import setup_commands
 setup_commands(app)
 
 print(">>> Using DB:", app.config["SQLALCHEMY_DATABASE_URI"], flush=True)
