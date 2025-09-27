@@ -31,7 +31,7 @@ export default function Servicios() {
                   <td>24.20 €</td>
                   <td><span className="badge bg-success">Activo</span></td>
                   <td className="text-end">
-                    <button className="btn btn-sm btn-outline-primary" disabled>Editar</button>
+                    <button className="btn btn-sm btn-outline-black" disabled>Editar</button>
                   </td>
                 </tr>
                 <tr>
@@ -41,13 +41,13 @@ export default function Servicios() {
                   <td>18.15 €</td>
                   <td><span className="badge bg-secondary">Inactivo</span></td>
                   <td className="text-end">
-                    <button className="btn btn-sm btn-outline-primary" disabled>Editar</button>
+                    <button className="btn btn-sm btn-outline-black" disabled>Editar</button>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <button className="btn btn-primary" disabled>Nuevo servicio</button>
+          <button className="btn sw-btn-black" disabled>Nuevo servicio</button>
         </div>
       </div>
     </div>

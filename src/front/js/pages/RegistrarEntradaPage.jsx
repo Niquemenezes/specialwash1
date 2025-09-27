@@ -255,7 +255,7 @@ const entradasOrdenadas = useMemo(() => {
             <div className="col-md-6 d-flex justify-content-md-end">
               <button
                 type="button"
-                className="btn btn-outline-primary mt-4 mt-md-0"
+                className="btn sw-btn-black mt-4 mt-md-0"
                 onClick={() => setShowNuevo(true)}
               >
                 + Nuevo producto
@@ -436,7 +436,7 @@ const entradasOrdenadas = useMemo(() => {
         </div>
 
         <div className="d-flex gap-2">
-          <button className="btn btn-primary" type="submit" disabled={saving}>
+          <button className="sw-btn-black" type="submit" disabled={saving}>
             {saving ? "Guardando..." : "Registrar entrada"}
           </button>
         </div>
@@ -446,7 +446,7 @@ const entradasOrdenadas = useMemo(() => {
 
       <div className="d-flex align-items-center justify-content-between">
         <h5 className="mb-0">Últimas entradas</h5>
-        <button className="btn btn-sm btn-outline-secondary" onClick={() => actions.getEntradas()}>
+        <button className="btn sw-btn-black" onClick={() => actions.getEntradas()}>
           Recargar
         </button>
       </div>

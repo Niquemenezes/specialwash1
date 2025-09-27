@@ -134,10 +134,10 @@ export default function ProductoFormModal({ show, onClose, onSaved, initial }) {
             </div>
 
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
+              <button type="button" className="btn sw-btn-black" onClick={onClose}>
                 Cancelar
               </button>
-              <button className="btn btn-primary" type="submit" disabled={saving}>
+              <button className="btn sw-btn-black" type="submit" disabled={saving}>
                 {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear"}
               </button>
             </div>

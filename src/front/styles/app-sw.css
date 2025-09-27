@@ -1,54 +1,71 @@
-/* ===== Paleta SpecialWash ===== */
+/* ===== Reset básico ===== */
+* { box-sizing: border-box; }
+
+/* ===== Paleta ===== */
 :root {
+  --nav-h: 64px;
+  --footer-h: 60px;
   --sw-black: #000;
   --sw-gold: #d4af37;
   --sw-gold-bright: #ffd700;
 }
 
-/* ===== Estilo global ===== */
+/* ===== Base ===== */
+html, body {
+  height: 100%;
+}
 body {
   margin: 0;
-  padding: 0;
+  font-family: Arial, sans-serif;
   background: var(--sw-black);
   color: var(--sw-gold);
-  font-family: Arial, sans-serif;
+  /* Compensar navbar fijo y footer fijo */
+  padding-top: var(--nav-h);
+  padding-bottom: var(--footer-h);
 }
 
-/* ===== Navbar ===== */
-.sw-navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1100;
+/* Contenedor principal que crece sin quedar “fijo” */
+.main-content {
+  min-height: calc(100vh - var(--nav-h) - var(--footer-h));
+  width: 100%;
+}
+
+/* ===== Navbar (fijo arriba) ===== */
+/* Usa <nav class="navbar fixed-top sw-navbar"> si estás con Bootstrap */
+.sw-navbar,
+.navbar.fixed-top,
+.navbar.sticky-top {
+  position: fixed; /* o sticky si prefieres: position: sticky; */
+  top: 0; left: 0; right: 0;
+  height: var(--nav-h);
   width: 100%;
   background: linear-gradient(180deg, #000 0%, #0a0a0a 100%);
   border-bottom: 2px solid var(--sw-gold);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  min-height: 60px;
+  /* IMPORTANTE: por debajo del modal (Bootstrap modal ~1055) */
+  z-index: 1000;
+}
+.navbar .navbar-brand,
+.navbar .nav-link {
+  color: var(--sw-gold) !important;
+  font-weight: 700;
+}
+.navbar .nav-link:hover {
+  color: var(--sw-gold-bright) !important;
+  text-shadow: 0 0 6px rgba(212, 175, 55, 0.8);
 }
 
-/* ===== Footer ===== */
+/* ===== Footer (fijo abajo) ===== */
 .fixed-footer {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 60px;
+  bottom: 0; left: 0; right: 0;
+  height: var(--footer-h);
   background: var(--sw-black);
   color: var(--sw-gold);
   border-top: 1px solid var(--sw-gold);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: flex; align-items: center; justify-content: center;
   font-size: 0.9rem;
-  z-index: 1000;
-}
-
-/* ===== Ajuste de contenido ===== */
-.main-content {
-  padding-top: 60px;    /* espacio igual a navbar */
-  padding-bottom: 60px; /* espacio igual a footer */
+  z-index: 900; /* por debajo del navbar y del modal */
 }
 
 /* ===== Tarjetas ===== */
@@ -58,33 +75,43 @@ body {
   border: 1px solid var(--sw-gold);
   border-radius: 12px;
   padding: 15px;
+  min-height: 130px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  min-height: 120px;
 }
-
 .card-home:hover {
   transform: translateY(-5px);
   box-shadow: 0 0 12px rgba(212, 175, 55, 0.7);
 }
-
 .card-home i {
   font-size: 1.8rem;
   color: var(--sw-gold);
   transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-
 .card-home:hover i {
   color: var(--sw-gold-bright);
   text-shadow: 0 0 10px rgba(212, 175, 55, 0.9);
+  animation: pulse 1s infinite;
 }
-
-.card-home h5 {
+.card-home .title {
   font-size: 1rem;
   font-weight: bold;
   color: var(--sw-gold);
+  margin-top: 8px;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.card-home:hover .title {
+  color: var(--sw-gold-bright);
+  text-shadow: 0 0 6px rgba(212, 175, 55, 0.8);
+}
+@keyframes pulse {
+  0% { transform: scale(1) }
+  50% { transform: scale(1.15) }
+  100% { transform: scale(1) }
 }
 
-/* Nav links / botón dorado (opcional si usas Bootstrap) */
+/* ===== Botones / links ===== */
 .sw-navlink { color: #fff !important; font-weight: 600; }
 .sw-navlink:hover, .sw-navlink.active { color: var(--sw-gold) !important; }
 .sw-btn-gold {
@@ -95,4 +122,122 @@ body {
   padding: 0.45rem 0.9rem !important;
   box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
   border: none;
+}
+
+/* ===== Asegurar que modales estén arriba del navbar ===== */
+/* (Solo si usas Bootstrap y cambiaste z-index del navbar) */
+.modal { z-index: 1055; }
+.modal-backdrop { z-index: 1050; }
+  /* ===== Botón Dorado ===== */
+.sw-btn-gold {
+  background-color: var(--sw-gold) !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 0.45rem 0.9rem !important;
+  box-shadow: 0 6px 14px rgba(212, 175, 55, 0.25);
+  border: none;
+  transition: all 0.3s ease;
+}
+.sw-btn-gold:hover {
+  background-color: var(--sw-gold-bright) !important;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+}
+
+/* ===== Botón Negro con Dorado ===== */
+.sw-btn-black {
+  background-color: var(--sw-black) !important;
+  color: var(--sw-gold) !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 0.45rem 0.9rem !important;
+  border: 2px solid var(--sw-gold) !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+}
+.sw-btn-black:hover {
+  background-color: var(--sw-gold) !important;
+  color: var(--sw-black) !important;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.7);
+}
+
+/* ===== Formularios SpecialWash ===== */
+.form-control,
+.form-select,
+textarea {
+  background-color: #111 !important;   /* negro suave, no tan puro */
+  color: var(--sw-gold) !important;
+  border: 1px solid var(--sw-gold);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.form-control::placeholder,
+textarea::placeholder {
+  color: rgba(212, 175, 55, 0.6); /* dorado tenue */
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea:focus {
+  background-color: #000 !important;
+  color: var(--sw-gold-bright) !important;
+  border-color: var(--sw-gold-bright);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+}
+
+/* Labels más visibles */
+form label {
+  color: var(--sw-gold);
+  font-weight: 600;
+}
+/* ===== Formularios claros SpecialWash ===== */
+.form-control,
+.form-select,
+textarea {
+  background-color: #fff !important;   /* blanco */
+  color: #000 !important;              /* texto negro */
+  border: 2px solid var(--sw-gold) !important;
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.form-control::placeholder,
+textarea::placeholder {
+  color: #666; /* gris suave */
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea:focus {
+  background-color: #fdfdfd !important;
+  color: #000 !important;
+  border-color: var(--sw-gold-bright) !important;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+/* Labels más visibles en dorado */
+form label {
+  color: var(--sw-gold);
+  font-weight: 600;
+}
+
+/* Botones en formularios */
+button[type="submit"],
+.sw-btn-form {
+  background-color: var(--sw-black);
+  color: var(--sw-gold);
+  border: 2px solid var(--sw-gold);
+  border-radius: 8px;
+  font-weight: 700;
+  padding: 0.5rem 1.2rem;
+  transition: all 0.3s ease;
+}
+button[type="submit"]:hover,
+.sw-btn-form:hover {
+  background-color: var(--sw-gold);
+  color: var(--sw-black);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
 }

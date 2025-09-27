@@ -1,16 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import { Context } from "../store/appContext";
+import MaquinariaAlertasWidget from "../component/MaquinariaAlertasWidget";
 
-const API_URL =
-  process.env.BACKEND_URL?.replace(/\/$/, "") ||
-  (typeof window !== "undefined"
-    ? `${window.location.origin.replace(/3000/, "3001")}/api`
-    : "/api");
 
-const getStored = (k) =>
-  (typeof sessionStorage !== "undefined" && sessionStorage.getItem(k)) ||
-  (typeof localStorage !== "undefined" && localStorage.getItem(k)) ||
-  "";
-
+// ===== Helpers =====
 const numberOrNull = (v) => {
   if (v === "" || v === null || v === undefined) return null;
   const n = Number(v);
@@ -26,15 +19,33 @@ const calcFinal = (precio, iva, dsc) => {
   return Math.round(fin * 100) / 100;
 };
 
+const daysTo = (dateStr) => {
+  if (!dateStr) return null;
+  const end = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  end.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  const diffMs = end.getTime() - today.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+};
+
+const warrantyStatus = (dateStr) => {
+  const d = daysTo(dateStr);
+  if (d === null) return { code: "unknown", label: "—", className: "badge bg-secondary" };
+  if (d < 0) return { code: "expired", label: "Vencida", className: "badge bg-danger" };
+  if (d <= 30) return { code: "soon", label: `Vence en ${d} días`, className: "badge bg-warning text-dark" };
+  return { code: "ok", label: `Quedan ${d} días`, className: "badge bg-success" };
+};
+
 export default function Maquinaria() {
-  const token = getStored("token");
-
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { store, actions } = useContext(Context);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [warrantyFilter, setWarrantyFilter] = useState("all"); // all | expired | soon
+  const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [editId, setEditId] = useState(null);
 
-  const [form, setForm] = useState({
+  const emptyForm = {
     nombre: "",
     tipo: "",
     marca: "",
@@ -43,249 +54,244 @@ export default function Maquinaria() {
     ubicacion: "",
     estado: "",
     fecha_compra: "",
+    notas: "",
+    // nuevos
     numero_factura: "",
     tienda: "",
     fecha_garantia_fin: "",
-    notas: "",
-    // nuevos campos
     precio_sin_iva: "",
     porcentaje_iva: "",
     descuento: "",
-  });
-
-  const precioFinal = useMemo(
-    () =>
-      calcFinal(form.precio_sin_iva || 0, form.porcentaje_iva || 0, form.descuento || 0),
-    [form.precio_sin_iva, form.porcentaje_iva, form.descuento]
-  );
-
-  const authHeaders = token
-    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
-    : { "Content-Type": "application/json" };
-
-  const fetchList = async () => {
-    setLoading(true);
-    const res = await fetch(`${API_URL}/maquinaria`, { headers: authHeaders });
-    const data = await res.json();
-    setItems(Array.isArray(data) ? data : []);
-    setLoading(false);
   };
 
+  const [form, setForm] = useState(emptyForm);
+
   useEffect(() => {
-    fetchList().catch(() => setLoading(false));
+    (async () => {
+      setLoading(true);
+      try {
+        await actions.getMaquinaria();
+      } finally {
+        setLoading(false);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const resetForm = () => {
-    setEditId(null);
-    setForm({
-      nombre: "",
-      tipo: "",
-      marca: "",
-      modelo: "",
-      numero_serie: "",
-      ubicacion: "",
-      estado: "",
-      fecha_compra: "",
-      numero_factura: "",
-      tienda: "",
-      fecha_garantia_fin: "",
-      notas: "",
-      precio_sin_iva: "",
-      porcentaje_iva: "",
-      descuento: "",
-    });
+  const items = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    let list = store.maquinaria || [];
+
+    if (q) {
+      list = list.filter((m) => {
+        const s = `${m.nombre || ""} ${m.tipo || ""} ${m.marca || ""} ${m.modelo || ""} ${m.numero_serie || ""} ${m.ubicacion || ""} ${m.tienda || ""} ${m.numero_factura || ""}`.toLowerCase();
+        return s.includes(q);
+      });
+    }
+
+    if (warrantyFilter !== "all") {
+      list = list.filter((m) => {
+        const st = warrantyStatus(m.fecha_garantia_fin).code;
+        if (warrantyFilter === "expired") return st === "expired";
+        if (warrantyFilter === "soon") return st === "soon";
+        return true;
+      });
+    }
+
+    return list;
+  }, [store.maquinaria, filter, warrantyFilter]);
+
+  const startCreate = () => {
+    setEditing({});
+    setForm(emptyForm);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
-  };
-
-  const onEdit = (it) => {
-    setEditId(it.id);
+  const startEdit = (m) => {
+    setEditing(m);
     setForm({
-      nombre: it.nombre || "",
-      tipo: it.tipo || "",
-      marca: it.marca || "",
-      modelo: it.modelo || "",
-      numero_serie: it.numero_serie || "",
-      ubicacion: it.ubicacion || "",
-      estado: it.estado || "",
-      fecha_compra: (it.fecha_compra || "").slice(0, 10),
-      numero_factura: it.numero_factura || "",
-      tienda: it.tienda || "",
-      fecha_garantia_fin: (it.fecha_garantia_fin || "").slice(0, 10),
-      notas: it.notas || "",
-      precio_sin_iva: it.precio_sin_iva ?? "",
-      porcentaje_iva: it.porcentaje_iva ?? "",
-      descuento: it.descuento ?? "",
+      nombre: m.nombre || "",
+      tipo: m.tipo || "",
+      marca: m.marca || "",
+      modelo: m.modelo || "",
+      numero_serie: m.numero_serie || "",
+      ubicacion: m.ubicacion || "",
+      estado: m.estado || "",
+      fecha_compra: (m.fecha_compra || "").slice(0, 10),
+      notas: m.notas || "",
+      // nuevos
+      numero_factura: m.numero_factura || "",
+      tienda: m.tienda || "",
+      fecha_garantia_fin: (m.fecha_garantia_fin || "").slice(0, 10),
+      precio_sin_iva: m.precio_sin_iva ?? "",
+      porcentaje_iva: m.porcentaje_iva ?? "",
+      descuento: m.descuento ?? "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const onDelete = async (id) => {
-    if (!window.confirm("¿Eliminar esta máquina?")) return;
-    await fetch(`${API_URL}/maquinaria/${id}`, {
-      method: "DELETE",
-      headers: authHeaders,
-    });
-    fetchList();
+  const cancel = () => {
+    setEditing(null);
+    setForm(emptyForm);
   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const precioFinal = useMemo(
+    () => calcFinal(form.precio_sin_iva || 0, form.porcentaje_iva || 0, form.descuento || 0),
+    [form.precio_sin_iva, form.porcentaje_iva, form.descuento]
+  );
+
+  const save = async (e) => {
+    e?.preventDefault?.();
+    if (!form.nombre.trim()) return alert("El nombre es obligatorio");
 
     const payload = {
-      ...form,
-      // normalizamos números
+      nombre: form.nombre.trim(),
+      tipo: form.tipo.trim() || undefined,
+      marca: form.marca.trim() || undefined,
+      modelo: form.modelo.trim() || undefined,
+      numero_serie: form.numero_serie.trim() || undefined,
+      ubicacion: form.ubicacion.trim() || undefined,
+      estado: form.estado.trim() || undefined,
+      fecha_compra: form.fecha_compra || undefined, // YYYY-MM-DD
+      notas: form.notas.trim() || undefined,
+      // nuevos:
+      numero_factura: form.numero_factura.trim() || undefined,
+      tienda: form.tienda.trim() || undefined,
+      fecha_garantia_fin: form.fecha_garantia_fin || undefined, // YYYY-MM-DD
       precio_sin_iva: numberOrNull(form.precio_sin_iva),
       porcentaje_iva: numberOrNull(form.porcentaje_iva),
       descuento: numberOrNull(form.descuento),
+      // opcional
+      precio_final: calcFinal(form.precio_sin_iva, form.porcentaje_iva, form.descuento),
     };
 
-    const method = editId ? "PUT" : "POST";
-    const url = editId
-      ? `${API_URL}/maquinaria/${editId}`
-      : `${API_URL}/maquinaria`;
-
-    const res = await fetch(url, {
-      method,
-      headers: authHeaders,
-      body: JSON.stringify(payload),
-    });
-
-    setSaving(false);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.msg || "Error guardando");
-      return;
+    try {
+      setSaving(true);
+      if (editing?.id) {
+        await actions.updateMaquina(editing.id, payload);
+      } else {
+        await actions.createMaquina(payload);
+      }
+      await actions.getMaquinaria(); // refresca lista
+      cancel();
+    } catch (err) {
+      alert(err?.message || "Error guardando");
+    } finally {
+      setSaving(false);
     }
-    resetForm();
-    fetchList();
+  };
+
+  const remove = async (m) => {
+    if (!window.confirm(`¿Eliminar máquina "${m.nombre}"?`)) return;
+    try {
+      await actions.deleteMaquina(m.id);
+      await actions.getMaquinaria();
+    } catch (err) {
+      alert(err?.message || "Error eliminando");
+    }
   };
 
   return (
     <div className="container py-4">
-      <h2 className="mb-3">Maquinaria</h2>
+      
+ {/* Alertas solo admin */}
+<MaquinariaAlertasWidget />
 
-      {/* ===== Formulario ===== */}
-      <div className="card mb-4">
-        <div className="card-body">
-          <h5 className="card-title">
-            {editId ? "Editar máquina" : "Registrar máquina"}
-          </h5>
-          <form onSubmit={onSubmit}>
-            <div className="row g-3">
-              <div className="col-md-6">
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <h2 className="m-0">Maquinaria</h2>
+        <button className="btn btn-dark" style={{ borderColor: "#d4af37" }} onClick={startCreate}>
+          <i className="fa-solid fa-plus me-2" /> Nueva máquina
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="row g-2 mb-3">
+        <div className="col-12 col-md-6">
+          <input
+            className="form-control"
+            placeholder="Buscar por nombre, tipo, marca, ubicación…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+        <div className="col-12 col-md-6 d-flex gap-2">
+          <select className="form-select" value={warrantyFilter} onChange={(e) => setWarrantyFilter(e.target.value)}>
+            <option value="all">Todas</option>
+            <option value="expired">Vencidas</option>
+            <option value="soon">Próximas a vencer (≤30 días)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Formulario */}
+      {editing !== null && (
+        <div className="card mb-3" style={{ border: "1px solid #d4af37" }}>
+          <div className="card-body">
+            <h5 className="card-title">{editing?.id ? "Editar máquina" : "Nueva máquina"}</h5>
+            <form onSubmit={save} className="row g-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Nombre *</label>
-                <input
-                  className="form-control"
-                  name="nombre"
-                  required
-                  value={form.nombre}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="nombre" value={form.nombre} onChange={onChange} required />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Tipo</label>
-                <input
-                  className="form-control"
-                  name="tipo"
-                  value={form.tipo}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="tipo" value={form.tipo} onChange={onChange} />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Marca</label>
-                <input
-                  className="form-control"
-                  name="marca"
-                  value={form.marca}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="marca" value={form.marca} onChange={onChange} />
               </div>
-
-              <div className="col-md-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Modelo</label>
-                <input
-                  className="form-control"
-                  name="modelo"
-                  value={form.modelo}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="modelo" value={form.modelo} onChange={onChange} />
               </div>
-              <div className="col-md-3">
-                <label className="form-label">Nº serie</label>
-                <input
-                  className="form-control"
-                  name="numero_serie"
-                  value={form.numero_serie}
-                  onChange={handleChange}
-                />
+              <div className="col-12 col-md-6">
+                <label className="form-label">Nº Serie</label>
+                <input className="form-control" name="numero_serie" value={form.numero_serie} onChange={onChange} />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Ubicación</label>
-                <input
-                  className="form-control"
-                  name="ubicacion"
-                  value={form.ubicacion}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="ubicacion" value={form.ubicacion} onChange={onChange} />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-6">
                 <label className="form-label">Estado</label>
-                <input
-                  className="form-control"
-                  name="estado"
-                  value={form.estado}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="estado" value={form.estado} onChange={onChange} />
               </div>
 
-              <div className="col-md-3">
-                <label className="form-label">Fecha compra</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  name="fecha_compra"
-                  value={form.fecha_compra}
-                  onChange={handleChange}
-                />
+              <div className="col-12 col-md-6">
+                <label className="form-label">Fecha de compra</label>
+                <input className="form-control" type="date" name="fecha_compra" value={form.fecha_compra} onChange={onChange} />
               </div>
-              <div className="col-md-3">
-                <label className="form-label">Nº factura</label>
-                <input
-                  className="form-control"
-                  name="numero_factura"
-                  value={form.numero_factura}
-                  onChange={handleChange}
-                />
+
+              {/* Nuevos */}
+              <div className="col-12 col-md-4">
+                <label className="form-label">Nº Factura</label>
+                <input className="form-control" name="numero_factura" value={form.numero_factura} onChange={onChange} />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-4">
                 <label className="form-label">Tienda</label>
-                <input
-                  className="form-control"
-                  name="tienda"
-                  value={form.tienda}
-                  onChange={handleChange}
-                />
+                <input className="form-control" name="tienda" value={form.tienda} onChange={onChange} />
               </div>
-              <div className="col-md-3">
-                <label className="form-label">Garantía (fin)</label>
+              <div className="col-12 col-md-4">
+                <label className="form-label d-flex justify-content-between">
+                  <span>Garantía (fin)</span>
+                  <span className={warrantyStatus(form.fecha_garantia_fin).className}>
+                    {warrantyStatus(form.fecha_garantia_fin).label}
+                  </span>
+                </label>
                 <input
                   type="date"
                   className="form-control"
                   name="fecha_garantia_fin"
                   value={form.fecha_garantia_fin}
-                  onChange={handleChange}
+                  onChange={onChange}
                 />
               </div>
 
-              {/* ======= Precio / IVA / Descuento / Final ======= */}
-              <div className="col-md-3">
+              {/* Precio / IVA / Descuento / Final */}
+              <div className="col-12 col-md-3">
                 <label className="form-label">Precio sin IVA (€)</label>
                 <input
                   type="number"
@@ -294,11 +300,11 @@ export default function Maquinaria() {
                   className="form-control"
                   name="precio_sin_iva"
                   value={form.precio_sin_iva}
-                  onChange={handleChange}
+                  onChange={onChange}
                   placeholder="0.00"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-3">
                 <label className="form-label">IVA (%)</label>
                 <input
                   type="number"
@@ -308,11 +314,11 @@ export default function Maquinaria() {
                   className="form-control"
                   name="porcentaje_iva"
                   value={form.porcentaje_iva}
-                  onChange={handleChange}
+                  onChange={onChange}
                   placeholder="21"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-3">
                 <label className="form-label">Descuento (%)</label>
                 <input
                   type="number"
@@ -322,103 +328,102 @@ export default function Maquinaria() {
                   className="form-control"
                   name="descuento"
                   value={form.descuento}
-                  onChange={handleChange}
+                  onChange={onChange}
                   placeholder="0"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-12 col-md-3">
                 <label className="form-label">Precio final (€)</label>
-                <input
-                  className="form-control"
-                  value={Number.isFinite(precioFinal) ? precioFinal.toFixed(2) : ""}
-                  readOnly
-                />
+                <input className="form-control" value={Number.isFinite(precioFinal) ? precioFinal.toFixed(2) : ""} readOnly />
               </div>
 
               <div className="col-12">
                 <label className="form-label">Notas</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  name="notas"
-                  value={form.notas}
-                  onChange={handleChange}
-                />
+                <textarea className="form-control" name="notas" rows="3" value={form.notas} onChange={onChange} />
               </div>
-            </div>
 
-            <div className="mt-3 d-flex gap-2">
-              <button className="btn btn-primary" disabled={saving}>
-                {saving ? "Guardando..." : editId ? "Guardar cambios" : "Crear"}
-              </button>
-              {editId && (
-                <button type="button" className="btn btn-secondary" onClick={resetForm}>
+              <div className="col-12 d-flex gap-2">
+                <button className="btn btn-primary" type="submit" disabled={saving}>
+                  <i className="fa-solid fa-floppy-disk me-2" /> {saving ? "Guardando..." : "Guardar"}
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={cancel}>
                   Cancelar
                 </button>
-              )}
-            </div>
-          </form>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ===== Listado ===== */}
-      <div className="card">
-        <div className="card-body">
-          <h5 className="card-title">Listado</h5>
-          {loading ? (
-            <p>Cargando...</p>
-          ) : items.length === 0 ? (
-            <p>No hay máquinas registradas.</p>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Marca/Modelo</th>
-                    <th>Serie</th>
-                    <th>Ubicación</th>
-                    <th>Compra</th>
-                    <th>Precio (€)</th>
-                    <th>IVA %</th>
-                    <th>Desc. %</th>
-                    <th>Final (€)</th>
-                    <th></th>
+      {/* Listado */}
+      <div className="table-responsive">
+        <table className="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Marca</th>
+              <th>Modelo</th>
+              <th>Ubicación</th>
+              <th>Compra</th>
+              <th>Garantía</th>
+              <th>Precio (€)</th>
+              <th>IVA %</th>
+              <th>Desc. %</th>
+              <th>Final (€)</th>
+              <th className="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan="12">Cargando…</td>
+              </tr>
+            )}
+            {!loading && items.length === 0 && (
+              <tr>
+                <td colSpan="12" className="text-muted">
+                  Sin maquinaria
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              items.map((m) => {
+                const st = warrantyStatus(m.fecha_garantia_fin);
+                const rowClass = st.code === "expired" ? "table-danger" : st.code === "soon" ? "table-warning" : "";
+                return (
+                  <tr key={m.id} className={rowClass}>
+                    <td>{m.nombre}</td>
+                    <td>{m.tipo || "-"}</td>
+                    <td>{m.marca || "-"}</td>
+                    <td>{m.modelo || "-"}</td>
+                    <td>{m.ubicacion || "-"}</td>
+                    <td>{(m.fecha_compra || "").slice(0, 10) || "-"}</td>
+                    <td>
+                      <span className={st.className}>{st.label}</span>
+                      {m.fecha_garantia_fin ? <div className="small text-muted">{m.fecha_garantia_fin.slice(0, 10)}</div> : null}
+                    </td>
+                    <td>{m.precio_sin_iva != null ? Number(m.precio_sin_iva).toFixed(2) : "-"}</td>
+                    <td>{m.porcentaje_iva != null ? m.porcentaje_iva : "-"}</td>
+                    <td>{m.descuento != null ? m.descuento : "-"}</td>
+                    <td>
+                      {m.precio_final != null
+                        ? Number(m.precio_final).toFixed(2)
+                        : calcFinal(m.precio_sin_iva, m.porcentaje_iva, m.descuento).toFixed(2)}
+                    </td>
+                    <td className="text-end">
+                      <button className="btn btn-outline-primary btn-sm me-2" onClick={() => startEdit(m)}>
+                        <i className="fa-solid fa-pen-to-square" /> Editar
+                      </button>
+                      <button className="btn btn-outline-danger btn-sm" onClick={() => remove(m)}>
+                        <i className="fa-solid fa-trash" /> Eliminar
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {items.map((it) => (
-                    <tr key={it.id}>
-                      <td>{it.nombre}</td>
-                      <td>
-                        {it.marca || "-"} / {it.modelo || "-"}
-                      </td>
-                      <td>{it.numero_serie || "-"}</td>
-                      <td>{it.ubicacion || "-"}</td>
-                      <td>{(it.fecha_compra || "").slice(0, 10) || "-"}</td>
-                      <td>{it.precio_sin_iva != null ? it.precio_sin_iva.toFixed(2) : "-"}</td>
-                      <td>{it.porcentaje_iva != null ? it.porcentaje_iva : "-"}</td>
-                      <td>{it.descuento != null ? it.descuento : "-"}</td>
-                      <td>
-                        {it.precio_final != null
-                          ? Number(it.precio_final).toFixed(2)
-                          : calcFinal(it.precio_sin_iva, it.porcentaje_iva, it.descuento).toFixed(2)}
-                      </td>
-                      <td className="text-end">
-                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => onEdit(it)}>
-                          Editar
-                        </button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(it.id)}>
-                          Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                );
+              })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

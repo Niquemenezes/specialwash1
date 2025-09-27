@@ -150,7 +150,7 @@ export default function ProductosPage() {
           />
 
           {/* Botón crear */}
-          <button className="btn btn-primary" onClick={openCrear}>
+          <button className="btn sw-btn-black" onClick={openCrear}>
             + Nuevo producto
           </button>
 
@@ -266,7 +266,7 @@ export default function ProductosPage() {
                       <td className="text-end">
                         <div className="btn-group">
                           <button
-                            className="btn btn-sm btn-outline-secondary"
+                            className="btn sw-btn-black"
                             onClick={() => openEditar(p)}
                             title="Editar"
                           >

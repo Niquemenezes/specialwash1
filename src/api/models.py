@@ -155,7 +155,7 @@ class Salida(db.Model):
         }
 
 # ----------------------------
-# Maquinaria (ahora con precios)
+# Maquinaria (con precios)
 # ----------------------------
 class Maquinaria(db.Model):
     __tablename__ = "maquinaria"
@@ -174,11 +174,11 @@ class Maquinaria(db.Model):
     tienda = db.Column(db.String(150))
     fecha_garantia_fin = db.Column(db.Date)
 
-    # nuevos campos precio
-    precio_sin_iva = db.Column(db.Float)      # base
-    porcentaje_iva = db.Column(db.Float)      # 0..100
-    descuento = db.Column(db.Float)           # 0..100
-    precio_final = db.Column(db.Float)        # total calculado (opcionalmente persistido)
+    # precios
+    precio_sin_iva = db.Column(db.Float)
+    porcentaje_iva = db.Column(db.Float)
+    descuento = db.Column(db.Float)
+    precio_final = db.Column(db.Float)
 
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
@@ -224,60 +224,102 @@ class Maquinaria(db.Model):
         }
 
 # ----------------------------
-# Clientes / Vehículos / Servicios / ServiciosRealizados / Facturas
+# Cliente y Vehiculo
 # ----------------------------
 class Cliente(db.Model):
     __tablename__ = "cliente"
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(150), nullable=False)
+    nombre = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120))
     telefono = db.Column(db.String(50))
-    # facturación
-    razon_social = db.Column(db.String(200))
-    nif_cif = db.Column(db.String(50))
     direccion = db.Column(db.String(255))
-    cp = db.Column(db.String(15))
-    ciudad = db.Column(db.String(100))
-    provincia = db.Column(db.String(100))
-    pais = db.Column(db.String(100))
+    nif_cif = db.Column(db.String(32))
+    razon_social = db.Column(db.String(160))
+    forma_pago = db.Column(db.String(40))
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    # Fechas a nivel de cliente (opcionales)
+    fecha_entrada = db.Column(db.Date)
+    fecha_salida  = db.Column(db.Date)
 
     vehiculos = relationship("Vehiculo", back_populates="cliente", lazy="selectin", cascade="all, delete-orphan")
-    facturas = relationship("Factura", back_populates="cliente", lazy="selectin")
+    facturas = relationship("Factura", back_populates="cliente", lazy="selectin", cascade="all, delete-orphan")
 
-    def to_dict(self):
-        return {
-            "id": self.id, "nombre": self.nombre, "email": self.email, "telefono": self.telefono,
-            "razon_social": self.razon_social, "nif_cif": self.nif_cif,
-            "direccion": self.direccion, "cp": self.cp, "ciudad": self.ciudad,
-            "provincia": self.provincia, "pais": self.pais,
-            "notas": self.notas, "created_at": iso(self.created_at),
+    # Evita recursión: por defecto NO incluye relaciones
+    def to_dict(self, include_vehiculos: bool = False):
+        data = {
+            "id": self.id,
+            "nombre": self.nombre,
+            "email": self.email,
+            "telefono": self.telefono,
+            "direccion": self.direccion,
+            "nif_cif": self.nif_cif,
+            "razon_social": self.razon_social,
+            "forma_pago": self.forma_pago,
+            "notas": self.notas,
+            "created_at": iso(self.created_at),
+            "fecha_entrada": iso(self.fecha_entrada),
+            "fecha_salida":  iso(self.fecha_salida),
         }
+        if include_vehiculos:
+            data["vehiculos"] = [v.to_dict(include_cliente=False) for v in self.vehiculos]
+        return data
 
 class Vehiculo(db.Model):
     __tablename__ = "vehiculo"
+
     id = db.Column(db.Integer, primary_key=True)
-    cliente_id = db.Column(db.Integer, db.ForeignKey("cliente.id"), nullable=False, index=True)
-    matricula = db.Column(db.String(20), nullable=False, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey("cliente.id"), nullable=False)
+    matricula = db.Column(db.String(20))
     marca = db.Column(db.String(80))
     modelo = db.Column(db.String(80))
     color = db.Column(db.String(50))
-    vin = db.Column(db.String(50))
+    vin = db.Column(db.String(50))  # opcional
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
+    # 🔹 NUEVOS CAMPOS
+    fecha_entrada = db.Column(db.Date)
+    fecha_salida  = db.Column(db.Date)
+
     cliente = relationship("Cliente", back_populates="vehiculos", lazy="joined")
-    servicios_realizados = relationship("ServicioRealizado", back_populates="vehiculo",
-                                        lazy="selectin", cascade="all, delete-orphan")
+    servicios_realizados = relationship(
+        "ServicioRealizado",
+        back_populates="vehiculo",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
 
-    def to_dict(self):
-        return {
-            "id": self.id, "cliente_id": self.cliente_id, "matricula": self.matricula,
-            "marca": self.marca, "modelo": self.modelo, "color": self.color,
-            "vin": self.vin, "notas": self.notas, "created_at": iso(self.created_at),
+    def dias_en_taller(self):
+        if not self.fecha_entrada:
+            return None
+        fin = self.fecha_salida or date.today()
+        return max(0, (fin - self.fecha_entrada).days)
+
+    # Evita recursión: por defecto NO incluye relaciones
+    def to_dict(self, include_cliente: bool = False):
+        data = {
+            "id": self.id,
+            "cliente_id": self.cliente_id,
+            "matricula": self.matricula,
+            "marca": self.marca,
+            "modelo": self.modelo,
+            "color": self.color,
+            "vin": self.vin,
+            "notas": self.notas,
+            "created_at": iso(self.created_at),
+            "fecha_entrada": iso(self.fecha_entrada),
+            "fecha_salida": iso(self.fecha_salida),
+            "dias_en_taller": self.dias_en_taller(),
+            "cliente_nombre": getattr(self.cliente, "nombre", None),
         }
+        if include_cliente and self.cliente:
+            data["cliente"] = self.cliente.to_dict(include_vehiculos=False)
+        return data
 
+# ----------------------------
+# Servicio
+# ----------------------------
 class Servicio(db.Model):
     __tablename__ = "servicio"
     id = db.Column(db.Integer, primary_key=True)
@@ -295,27 +337,33 @@ class Servicio(db.Model):
             "activo": self.activo, "created_at": iso(self.created_at),
         }
 
+# ----------------------------
+# ServicioRealizado
+# ----------------------------
 class ServicioRealizado(db.Model):
     __tablename__ = "servicio_realizado"
     id = db.Column(db.Integer, primary_key=True)
+
     vehiculo_id = db.Column(db.Integer, db.ForeignKey("vehiculo.id"), nullable=False, index=True)
     servicio_id = db.Column(db.Integer, db.ForeignKey("servicio.id"), nullable=False)
+
     fecha = db.Column(db.DateTime(timezone=True), server_default=func.now(), index=True)
     cantidad = db.Column(db.Integer, default=1, nullable=False)
 
-    precio_unitario = db.Column(db.Float)    # sin IVA (congelado)
-    porcentaje_iva = db.Column(db.Float)     # congelado
-    descuento = db.Column(db.Float)          # 0..100 por línea
+    precio_unitario = db.Column(db.Float)    # sin IVA
+    porcentaje_iva = db.Column(db.Float)     # %
+    descuento = db.Column(db.Float)          # 0..100
+
     observaciones = db.Column(db.String(255))
 
     facturado = db.Column(db.Boolean, default=False, index=True)
-    factura_id = db.Column(db.Integer, db.ForeignKey("factura.id"))
+    factura_id = db.Column(db.Integer, db.ForeignKey("factura.id"), nullable=True)
 
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
-    vehiculo = relationship("Vehiculo", back_populates="servicios_realizados", lazy="joined")
-    servicio = relationship("Servicio", lazy="joined")
-    factura = relationship("Factura", back_populates="lineas", lazy="joined")
+    vehiculo = db.relationship("Vehiculo", back_populates="servicios_realizados", lazy="joined")
+    servicio = db.relationship("Servicio", lazy="joined")
+    factura = db.relationship("Factura", back_populates="servicios_realizados", lazy="joined")
 
     def total_sin_iva(self):
         p = float(self.precio_unitario or 0.0) * int(self.cantidad or 1)
@@ -327,45 +375,131 @@ class ServicioRealizado(db.Model):
         iva = float(self.porcentaje_iva or 0.0) / 100.0
         return round(base * (1.0 + iva), 2)
 
-    def to_dict(self):
-        return {
-            "id": self.id, "vehiculo_id": self.vehiculo_id, "servicio_id": self.servicio_id,
-            "servicio_nombre": getattr(self.servicio, "nombre", None), "fecha": iso(self.fecha),
-            "cantidad": self.cantidad, "precio_unitario": self.precio_unitario,
-            "porcentaje_iva": self.porcentaje_iva, "descuento": self.descuento,
-            "observaciones": self.observaciones, "facturado": self.facturado, "factura_id": self.factura_id,
-            "total_sin_iva": self.total_sin_iva(), "total_con_iva": self.total_con_iva(),
+    def to_dict(self, include_factura: bool = False, include_vehiculo: bool = False):
+        data = {
+            "id": self.id,
+            "vehiculo_id": self.vehiculo_id,
+            "servicio_id": self.servicio_id,
+            "servicio_nombre": getattr(self.servicio, "nombre", None),
+            "fecha": iso(self.fecha),
+            "cantidad": self.cantidad,
+            "precio_unitario": self.precio_unitario,
+            "porcentaje_iva": self.porcentaje_iva,
+            "descuento": self.descuento,
+            "observaciones": self.observaciones,
+            "facturado": self.facturado,
+            "factura_id": self.factura_id,
+            "total_sin_iva": self.total_sin_iva(),
+            "total_con_iva": self.total_con_iva(),
             "created_at": iso(self.created_at),
         }
+        # Evitar recursión: si incluimos la factura aquí, no volvemos a incluir servicios/lineas de esa factura
+        if include_factura and self.factura:
+            data["factura"] = self.factura.to_dict(include_servicios=False, include_lineas=False)
+        # Opcional: incluir datos básicos del vehículo, sin cliente para no anidar demasiado
+        if include_vehiculo and self.vehiculo:
+            data["vehiculo"] = self.vehiculo.to_dict(include_cliente=False)
+        return data
 
+# ----------------------------
+# Factura y LineaFactura
+# ----------------------------
 class Factura(db.Model):
     __tablename__ = "factura"
+
     id = db.Column(db.Integer, primary_key=True)
-    cliente_id = db.Column(db.Integer, db.ForeignKey("cliente.id"), nullable=False, index=True)
-    numero = db.Column(db.String(50), unique=True)
-    fecha_emision = db.Column(db.Date, default=date.today, index=True)
-    pagada = db.Column(db.Boolean, default=False, index=True)
-    fecha_pago = db.Column(db.Date)
-    observaciones = db.Column(db.Text)
+    cliente_id = db.Column(db.Integer, db.ForeignKey("cliente.id"), nullable=False)
+
+    numero = db.Column(db.String(40))
+    fecha = db.Column(db.Date)
+    estado = db.Column(db.String(20), default="borrador")
+    forma_pago = db.Column(db.String(40))
+
+    base_imponible = db.Column(db.Float, default=0.0)
+    porcentaje_iva = db.Column(db.Float, default=21.0)
+    importe_iva = db.Column(db.Float, default=0.0)
+    total = db.Column(db.Float, default=0.0)
+
+    notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
-    cliente = relationship("Cliente", back_populates="facturas", lazy="joined")
-    lineas = relationship("ServicioRealizado", back_populates="factura", lazy="selectin")
+    cliente = db.relationship("Cliente", back_populates="facturas", lazy="joined")
 
-    def totals(self):
-        base = sum([l.total_sin_iva() for l in self.lineas or []])
-        iva = sum([round(l.total_sin_iva() * (float(l.porcentaje_iva or 0) / 100.0), 2) for l in self.lineas or []])
-        total = round(base + iva, 2)
-        return {"base": round(base, 2), "iva": round(iva, 2), "total": total}
+    lineas = db.relationship(
+        "LineaFactura",
+        back_populates="factura",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    servicios_realizados = db.relationship(
+        "ServicioRealizado",
+        back_populates="factura",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    def recompute_totals(self):
+        base = 0.0
+        for ln in self.lineas:
+            qty = float(ln.cantidad or 0)
+            pu  = float(ln.precio_unitario or 0)
+            ln.total_linea = round(qty * pu, 2)
+            base += ln.total_linea
+
+        # si quieres sumar servicios_realizados, descomenta:
+        # for srv in self.servicios_realizados:
+        #     base += srv.total_sin_iva()
+
+        self.base_imponible = round(base, 2)
+        iva_pct = float(self.porcentaje_iva or 0)
+        self.importe_iva = round(self.base_imponible * iva_pct / 100.0, 2)
+        self.total = round(self.base_imponible + self.importe_iva, 2)
+
+    def to_dict(self, include_lineas: bool = True, include_servicios: bool = False):
+        data = {
+            "id": self.id,
+            "cliente_id": self.cliente_id,
+            "cliente_nombre": getattr(self.cliente, "nombre", None),
+            "numero": self.numero,
+            "fecha": iso(self.fecha),
+            "estado": self.estado,
+            "forma_pago": self.forma_pago,
+            "base_imponible": self.base_imponible,
+            "porcentaje_iva": self.porcentaje_iva,
+            "importe_iva": self.importe_iva,
+            "total": self.total,
+            "notas": self.notas,
+            "created_at": iso(self.created_at),
+        }
+        if include_lineas:
+            data["lineas"] = [l.to_dict() for l in self.lineas]
+        if include_servicios:
+            # Evitar recursión: los servicios NO deben volver a incluir la factura
+            data["servicios_realizados"] = [
+                s.to_dict(include_factura=False, include_vehiculo=False) for s in self.servicios_realizados
+            ]
+        return data
+
+class LineaFactura(db.Model):
+    __tablename__ = "linea_factura"
+
+    id = db.Column(db.Integer, primary_key=True)
+    factura_id = db.Column(db.Integer, db.ForeignKey("factura.id"), nullable=False)
+
+    descripcion = db.Column(db.String(255), nullable=False)
+    cantidad = db.Column(db.Float, default=1.0)
+    precio_unitario = db.Column(db.Float, default=0.0)
+    total_linea = db.Column(db.Float, default=0.0)
+
+    factura = db.relationship("Factura", back_populates="lineas", lazy="joined")
 
     def to_dict(self):
-        t = self.totals()
         return {
-            "id": self.id, "cliente_id": self.cliente_id,
-            "cliente_nombre": getattr(self.cliente, "nombre", None),
-            "numero": self.numero, "fecha_emision": iso(self.fecha_emision),
-            "pagada": self.pagada, "fecha_pago": iso(self.fecha_pago),
-            "observaciones": self.observaciones, "totales": t,
-            "created_at": iso(self.created_at),
-            "lineas": [l.to_dict() for l in self.lineas or []],
+            "id": self.id,
+            "factura_id": self.factura_id,
+            "descripcion": self.descripcion,
+            "cantidad": self.cantidad,
+            "precio_unitario": self.precio_unitario,
+            "total_linea": self.total_linea,
         }

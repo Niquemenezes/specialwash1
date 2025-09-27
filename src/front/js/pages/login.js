@@ -54,7 +54,7 @@ export default function Login() {
       localStorage.setItem("rol", role);
 
       // Redirección por rol
-      if (role === "administrador") navigate("/productos", { replace: true });
+      if (role === "administrador") navigate("/", { replace: true });
       else navigate("/salidas", { replace: true });
     } catch (err) {
       // Diferenciar fallo de red (Failed to fetch) de 4xx del backend

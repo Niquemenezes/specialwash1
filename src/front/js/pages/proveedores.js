@@ -153,10 +153,10 @@ export default function Proveedores() {
               </div>
 
               <div className="col-12 d-flex gap-2">
-                <button className="btn btn-primary" type="submit">
+                <button className="sw-btn-black" type="submit">
                   <i className="fa-solid fa-floppy-disk me-2" /> Guardar
                 </button>
-                <button className="btn btn-secondary" type="button" onClick={cancel}>
+                <button className="sw-btn-black" type="button" onClick={cancel}>
                   Cancelar
                 </button>
               </div>

@@ -1,10 +1,29 @@
 // src/front/js/store/flux.js — SpecialWash (roles + módulos + candados anti-bucle)
 
 const getState = ({ getStore, getActions, setStore }) => {
-  // Base normalizada (sin barras al final)
-  const BASE = (process.env.REACT_APP_BACKEND_URL ||
-    "https://congenial-space-xylophone-569v6grv5rxcvw64-3001.app.github.dev"
-  ).replace(/\/+$/, "");
+  // ===== BASE de API con fallback inteligente (Codespaces/localhost) =====
+  const ORIGIN =
+    (typeof window !== "undefined" && window.location?.origin) || "";
+
+  const inferBackendBase = (origin) => {
+    if (!origin) return "";
+    // Codespaces: ...-3000.app.github.dev  ->  ...-3001.app.github.dev
+    let out = origin.replace(/-3000(\.)/g, "-3001$1");
+    // Localhost: :3000 -> :3001
+    out = out.replace(/:3000\b/g, ":3001");
+    return out;
+  };
+
+  const DEFAULT_BASE = inferBackendBase(ORIGIN);
+  // Usa REACT_APP_BACKEND_URL si existe; si no, usa DEFAULT_BASE (conmutado a 3001 cuando proceda)
+  const BASE = (process.env.REACT_APP_BACKEND_URL || DEFAULT_BASE || "")
+    .replace(/\/+$/, ""); // sin barra final
+
+  const buildURL = (path = "") => {
+    if (!path) return BASE;
+    if (/^https?:\/\//i.test(path)) return path; // ya es absoluta
+    return `${BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  };
 
   // ====== Candados simples para evitar múltiples fetch en StrictMode/re-montajes ======
   let _loadingUsuarios = false;
@@ -13,32 +32,42 @@ const getState = ({ getStore, getActions, setStore }) => {
   let _loadingMaquinaria = false;
   let _loadingEntradas = false;
   let _loadingSalidas = false;
+  let _loadingClientes = false;
+  let _loadingServicios = false;
+  let _loadingVehiculos = false;
+  let _loadingFacturas = false;
 
   // ========= Helper de fetch =========
   async function apiFetch(
     path,
-    {
-      method = "GET",
-      headers = {},
-      body,
-      auth = true,
-      json = true,
-    } = {}
+    { method = "GET", headers = {}, body, auth = true, json = true } = {}
   ) {
     const store = getStore();
-    const url = path.startsWith("http")
-      ? path
-      : `${BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+    const url = buildURL(path);
 
-    const finalHeaders = { ...headers };
+    const finalHeaders = {
+      Accept: "application/json",
+      ...headers,
+    };
 
-    if (json && !finalHeaders["Content-Type"] && method !== "GET" && method !== "HEAD") {
+    // Si el body es FormData, no forzamos Content-Type
+    const isFormData =
+      typeof FormData !== "undefined" && body instanceof FormData;
+
+    if (
+      json &&
+      !isFormData &&
+      !finalHeaders["Content-Type"] &&
+      method !== "GET" &&
+      method !== "HEAD"
+    ) {
       finalHeaders["Content-Type"] = "application/json";
     }
 
     const token =
       store.token ||
-      (typeof sessionStorage !== "undefined" && sessionStorage.getItem("token")) ||
+      (typeof sessionStorage !== "undefined" &&
+        sessionStorage.getItem("token")) ||
       (typeof localStorage !== "undefined" && localStorage.getItem("token"));
 
     if (auth && token) finalHeaders.Authorization = `Bearer ${token}`;
@@ -46,12 +75,20 @@ const getState = ({ getStore, getActions, setStore }) => {
     const resp = await fetch(url, {
       method,
       headers: finalHeaders,
-      body: json && body && typeof body !== "string" ? JSON.stringify(body) : body,
+      body:
+        json && !isFormData && body && typeof body !== "string"
+          ? JSON.stringify(body)
+          : body,
+      credentials: "omit",
     });
 
-    const raw = await resp.text();
-    let data = raw;
-    try { data = raw ? JSON.parse(raw) : null; } catch { /* respuesta no-JSON */ }
+    const text = await resp.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text || null; // respuesta no-JSON
+    }
 
     if (!resp.ok) {
       const msg = (data && (data.msg || data.message)) || `HTTP ${resp.status}`;
@@ -66,12 +103,14 @@ const getState = ({ getStore, getActions, setStore }) => {
     const t = data?.token || data?.access_token || null;
     if (t) {
       if (typeof localStorage !== "undefined") localStorage.setItem("token", t);
-      if (typeof sessionStorage !== "undefined") sessionStorage.setItem("token", t);
+      if (typeof sessionStorage !== "undefined")
+        sessionStorage.setItem("token", t);
     }
     const user = data?.user || null;
     if (user) {
       const rol = (user.rol || user.role || "empleado").toLowerCase();
-      if (typeof sessionStorage !== "undefined") sessionStorage.setItem("rol", rol);
+      if (typeof sessionStorage !== "undefined")
+        sessionStorage.setItem("rol", rol);
       if (typeof localStorage !== "undefined") localStorage.setItem("rol", rol);
     }
     return { token: t, user };
@@ -82,7 +121,8 @@ const getState = ({ getStore, getActions, setStore }) => {
       // Auth
       auth: false,
       token:
-        (typeof sessionStorage !== "undefined" && sessionStorage.getItem("token")) ||
+        (typeof sessionStorage !== "undefined" &&
+          sessionStorage.getItem("token")) ||
         (typeof localStorage !== "undefined" && localStorage.getItem("token")) ||
         null,
       user: null,
@@ -94,6 +134,10 @@ const getState = ({ getStore, getActions, setStore }) => {
       maquinaria: [],
       entradas: [],
       salidas: [],
+      clientes: [],
+      servicios: [],
+      facturas: [],
+      vehiculos: [],
 
       // Informes
       resumenEntradas: [],
@@ -113,7 +157,10 @@ const getState = ({ getStore, getActions, setStore }) => {
           const data = await apiFetch("/api/hello", { auth: false });
           setStore({ message: data?.msg || data?.message || "ok" });
           return data;
-        } catch (err) { console.error("getMessage:", err); return null; }
+        } catch (err) {
+          console.error("getMessage:", err);
+          return null;
+        }
       },
 
       // ===== AUTH
@@ -131,16 +178,18 @@ const getState = ({ getStore, getActions, setStore }) => {
         }
       },
 
-      // login por JSON (usa Authorization en headers después)
-      login: async (email, password, rol = "administrador") => {
+      // login por JSON
+      login: async (email, password) => {
         try {
           const data = await apiFetch("/api/auth/login_json", {
             method: "POST",
             auth: false,
-            body: { email, password, rol }, // rol opcional
+            body: { email, password },
           });
           const { token, user } = saveTokenAndUser(data);
           setStore({ token, auth: true, user });
+          if (typeof window !== "undefined")
+            window.dispatchEvent(new Event("auth-changed"));
           return { ok: true, user, token };
         } catch (err) {
           console.error("login:", err);
@@ -155,19 +204,36 @@ const getState = ({ getStore, getActions, setStore }) => {
           const user = data?.user || null;
           if (user) {
             const rol = (user.rol || user.role || "empleado").toLowerCase();
-            sessionStorage.setItem("rol", rol);
-            localStorage.setItem("rol", rol);
+            if (typeof sessionStorage !== "undefined")
+              sessionStorage.setItem("rol", rol);
+            if (typeof localStorage !== "undefined")
+              localStorage.setItem("rol", rol);
           }
           setStore({ auth: true, user });
           return user;
-        } catch (err) { console.error("me:", err); return null; }
+        } catch (err) {
+          console.error("me:", err);
+          return null;
+        }
       },
 
       logout: async () => {
-        try { await apiFetch("/api/auth/logout", { method: "POST", auth: false }); } catch { /* no-op */ }
-        localStorage.removeItem("token"); localStorage.removeItem("rol");
-        sessionStorage.removeItem("token"); sessionStorage.removeItem("rol");
+        try {
+          await apiFetch("/api/auth/logout", { method: "POST", auth: false });
+        } catch {
+          /* no-op */
+        }
+        if (typeof localStorage !== "undefined") {
+          localStorage.removeItem("token");
+          localStorage.removeItem("rol");
+        }
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.removeItem("token");
+          sessionStorage.removeItem("rol");
+        }
         setStore({ auth: false, token: null, user: null });
+        if (typeof window !== "undefined")
+          window.dispatchEvent(new Event("auth-changed"));
       },
 
       // ===== USUARIOS (ADMIN)
@@ -176,7 +242,9 @@ const getState = ({ getStore, getActions, setStore }) => {
         _loadingUsuarios = true;
         try {
           const data = await apiFetch("/api/usuarios", { method: "GET" });
-          setStore({ usuarios: Array.isArray(data) ? data : (data?.items || []) });
+          setStore({
+            usuarios: Array.isArray(data) ? data : data?.items || [],
+          });
           return getStore().usuarios;
         } catch (e) {
           console.error("getUsuarios:", e);
@@ -188,29 +256,46 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       createUsuario: async (usuario) => {
         try {
-          const created = await apiFetch("/api/usuarios", { method: "POST", body: usuario });
+          const created = await apiFetch("/api/usuarios", {
+            method: "POST",
+            body: usuario,
+          });
           const { usuarios } = getStore();
           setStore({ usuarios: [...usuarios, created] });
           return created;
-        } catch (err) { console.error("createUsuario:", err); throw err; }
+        } catch (err) {
+          console.error("createUsuario:", err);
+          throw err;
+        }
       },
 
       updateUsuario: async (id, usuario) => {
         try {
-          const updated = await apiFetch(`/api/usuarios/${id}`, { method: "PUT", body: usuario });
+          const updated = await apiFetch(`/api/usuarios/${id}`, {
+            method: "PUT",
+            body: usuario,
+          });
           const { usuarios } = getStore();
-          setStore({ usuarios: usuarios.map(u => u.id === updated.id ? updated : u) });
+          setStore({
+            usuarios: usuarios.map((u) => (u.id === updated.id ? updated : u)),
+          });
           return updated;
-        } catch (err) { console.error("updateUsuario:", err); throw err; }
+        } catch (err) {
+          console.error("updateUsuario:", err);
+          throw err;
+        }
       },
 
       deleteUsuario: async (id) => {
         try {
           await apiFetch(`/api/usuarios/${id}`, { method: "DELETE" });
           const { usuarios } = getStore();
-          setStore({ usuarios: usuarios.filter(u => u.id !== id) });
+          setStore({ usuarios: usuarios.filter((u) => u.id !== id) });
           return true;
-        } catch (err) { console.error("deleteUsuario:", err); throw err; }
+        } catch (err) {
+          console.error("deleteUsuario:", err);
+          throw err;
+        }
       },
 
       // ===== PROVEEDORES
@@ -219,7 +304,9 @@ const getState = ({ getStore, getActions, setStore }) => {
         _loadingProveedores = true;
         try {
           const data = await apiFetch("/api/proveedores");
-          setStore({ proveedores: Array.isArray(data) ? data : (data?.items || []) });
+          setStore({
+            proveedores: Array.isArray(data) ? data : data?.items || [],
+          });
           return getStore().proveedores;
         } catch (err) {
           console.error("getProveedores:", err);
@@ -231,29 +318,48 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       createProveedor: async (proveedor) => {
         try {
-          const created = await apiFetch("/api/proveedores", { method: "POST", body: proveedor });
+          const created = await apiFetch("/api/proveedores", {
+            method: "POST",
+            body: proveedor,
+          });
           const { proveedores } = getStore();
           setStore({ proveedores: [...proveedores, created] });
           return created;
-        } catch (err) { console.error("createProveedor:", err); throw err; }
+        } catch (err) {
+          console.error("createProveedor:", err);
+          throw err;
+        }
       },
 
       updateProveedor: async (id, proveedor) => {
         try {
-          const updated = await apiFetch(`/api/proveedores/${id}`, { method: "PUT", body: proveedor });
+          const updated = await apiFetch(`/api/proveedores/${id}`, {
+            method: "PUT",
+            body: proveedor,
+          });
           const { proveedores } = getStore();
-          setStore({ proveedores: proveedores.map(p => p.id === updated.id ? updated : p) });
+          setStore({
+            proveedores: proveedores.map((p) =>
+              p.id === updated.id ? updated : p
+            ),
+          });
           return updated;
-        } catch (err) { console.error("updateProveedor:", err); throw err; }
+        } catch (err) {
+          console.error("updateProveedor:", err);
+          throw err;
+        }
       },
 
       deleteProveedor: async (id) => {
         try {
           await apiFetch(`/api/proveedores/${id}`, { method: "DELETE" });
           const { proveedores } = getStore();
-          setStore({ proveedores: proveedores.filter(p => p.id !== id) });
+          setStore({ proveedores: proveedores.filter((p) => p.id !== id) });
           return true;
-        } catch (err) { console.error("deleteProveedor:", err); throw err; }
+        } catch (err) {
+          console.error("deleteProveedor:", err);
+          throw err;
+        }
       },
 
       // ===== PRODUCTOS
@@ -266,8 +372,12 @@ const getState = ({ getStore, getActions, setStore }) => {
           if (opts.q) params.set("q", opts.q);
           if (opts.categoria) params.set("categoria", opts.categoria);
 
-          const data = await apiFetch(`/api/productos${params.toString() ? `?${params}` : ""}`);
-          setStore({ productos: Array.isArray(data) ? data : (data?.items || []) });
+          const data = await apiFetch(
+            `/api/productos${params.toString() ? `?${params}` : ""}`
+          );
+          setStore({
+            productos: Array.isArray(data) ? data : data?.items || [],
+          });
           return getStore().productos;
         } catch (err) {
           console.error("getProductos:", err);
@@ -283,11 +393,17 @@ const getState = ({ getStore, getActions, setStore }) => {
 
       createProducto: async (producto) => {
         try {
-          const created = await apiFetch("/api/productos", { method: "POST", body: producto });
+          const created = await apiFetch("/api/productos", {
+            method: "POST",
+            body: producto,
+          });
           const { productos } = getStore();
           setStore({ productos: [...productos, created] });
           return created;
-        } catch (err) { console.error("createProducto:", err); throw err; }
+        } catch (err) {
+          console.error("createProducto:", err);
+          throw err;
+        }
       },
 
       updateProducto: async (id, producto) => {
@@ -309,12 +425,14 @@ const getState = ({ getStore, getActions, setStore }) => {
 
           const updated = await apiFetch(`/api/productos/${id}`, {
             method: "PUT",
-            body: payload
+            body: payload,
           });
 
           const { productos } = getStore();
           setStore({
-            productos: (productos || []).map(p => (p.id === updated.id ? updated : p))
+            productos: (productos || []).map((p) =>
+              p.id === updated.id ? updated : p
+            ),
           });
           return updated;
         } catch (err) {
@@ -327,17 +445,26 @@ const getState = ({ getStore, getActions, setStore }) => {
         try {
           await apiFetch(`/api/productos/${id}`, { method: "DELETE" });
           const { productos } = getStore();
-          setStore({ productos: productos.filter(p => p.id !== id) });
+          setStore({ productos: productos.filter((p) => p.id !== id) });
           return true;
-        } catch (err) { console.error("deleteProducto:", err); throw err; }
+        } catch (err) {
+          console.error("deleteProducto:", err);
+          throw err;
+        }
       },
 
       // ===== ENTRADAS (solo admin para crear)
       registrarEntrada: async (payload) => {
         try {
-          const created = await apiFetch("/api/registro-entrada", { method: "POST", body: payload });
+          const created = await apiFetch("/api/registro-entrada", {
+            method: "POST",
+            body: payload,
+          });
           return created;
-        } catch (err) { console.error("registrarEntrada:", err); throw err; }
+        } catch (err) {
+          console.error("registrarEntrada:", err);
+          throw err;
+        }
       },
 
       getEntradas: async (params = {}) => {
@@ -348,8 +475,10 @@ const getState = ({ getStore, getActions, setStore }) => {
           Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null && v !== "") query.append(k, v);
           });
-          const data = await apiFetch(`/api/registro-entrada${query.toString() ? `?${query}` : ""}`);
-          setStore({ entradas: Array.isArray(data) ? data : (data?.items || []) });
+          const data = await apiFetch(
+            `/api/registro-entrada${query.toString() ? `?${query}` : ""}`
+          );
+          setStore({ entradas: Array.isArray(data) ? data : data?.items || [] });
           return getStore().entradas;
         } catch (err) {
           console.error("getEntradas:", err);
@@ -365,8 +494,12 @@ const getState = ({ getStore, getActions, setStore }) => {
           if (desde) params.append("desde", desde);
           if (hasta) params.append("hasta", hasta);
           if (proveedorId) params.append("proveedor_id", proveedorId);
-          const data = await apiFetch(`/api/registro-entrada${params.toString() ? `?${params}` : ""}`);
-          setStore({ resumenEntradas: Array.isArray(data) ? data : (data?.items || []) });
+          const data = await apiFetch(
+            `/api/registro-entrada${params.toString() ? `?${params}` : ""}`
+          );
+          setStore({
+            resumenEntradas: Array.isArray(data) ? data : data?.items || [],
+          });
           return getStore().resumenEntradas;
         } catch (err) {
           console.error("getResumenEntradas:", err);
@@ -378,9 +511,15 @@ const getState = ({ getStore, getActions, setStore }) => {
       // ===== SALIDAS (admin/empleado)
       registrarSalida: async (payload) => {
         try {
-          const created = await apiFetch("/api/registro-salida", { method: "POST", body: payload });
+          const created = await apiFetch("/api/registro-salida", {
+            method: "POST",
+            body: payload,
+          });
           return created;
-        } catch (err) { console.error("registrarSalida:", err); throw err; }
+        } catch (err) {
+          console.error("registrarSalida:", err);
+          throw err;
+        }
       },
 
       getSalidas: async (params = {}) => {
@@ -391,8 +530,10 @@ const getState = ({ getStore, getActions, setStore }) => {
           Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null && v !== "") query.append(k, v);
           });
-          const data = await apiFetch(`/api/registro-salida${query.toString() ? `?${query}` : ""}`);
-          setStore({ salidas: Array.isArray(data) ? data : (data?.items || []) });
+          const data = await apiFetch(
+            `/api/registro-salida${query.toString() ? `?${query}` : ""}`
+          );
+          setStore({ salidas: Array.isArray(data) ? data : data?.items || [] });
           return getStore().salidas;
         } catch (err) {
           console.error("getSalidas:", err);
@@ -408,8 +549,12 @@ const getState = ({ getStore, getActions, setStore }) => {
           if (desde) params.append("desde", desde);
           if (hasta) params.append("hasta", hasta);
           if (productoId) params.append("producto_id", productoId);
-          const data = await apiFetch(`/api/salidas${params.toString() ? `?${params}` : ""}`);
-          setStore({ historialSalidas: Array.isArray(data) ? data : (data?.items || []) });
+          const data = await apiFetch(
+            `/api/salidas${params.toString() ? `?${params}` : ""}`
+          );
+          setStore({
+            historialSalidas: Array.isArray(data) ? data : data?.items || [],
+          });
           return getStore().historialSalidas;
         } catch (err) {
           console.error("getHistorialSalidas:", err);
@@ -418,54 +563,76 @@ const getState = ({ getStore, getActions, setStore }) => {
         }
       },
 
-      // ===== MAQUINARIA
+      // ===== MAQUINARIA =====
       getMaquinaria: async () => {
         if (_loadingMaquinaria) return getStore().maquinaria;
         _loadingMaquinaria = true;
         try {
           const data = await apiFetch("/api/maquinaria");
-          setStore({ maquinaria: Array.isArray(data) ? data : (data?.items || []) });
+          setStore({ maquinaria: Array.isArray(data) ? data : [] });
           return getStore().maquinaria;
         } catch (err) {
           console.error("getMaquinaria:", err);
+          setStore({ maquinaria: [] });
           return [];
         } finally {
           _loadingMaquinaria = false;
         }
       },
 
-      createMaquina: async (maquina) => {
+      createMaquina: async (payload) => {
         try {
-          const created = await apiFetch("/api/maquinaria", { method: "POST", body: maquina });
+          const created = await apiFetch("/api/maquinaria", {
+            method: "POST",
+            body: payload,
+          });
           const { maquinaria } = getStore();
-          setStore({ maquinaria: [...maquinaria, created] });
+          setStore({ maquinaria: [created, ...(maquinaria || [])] });
           return created;
-        } catch (err) { console.error("createMaquina:", err); throw err; }
+        } catch (err) {
+          console.error("createMaquina:", err);
+          throw err;
+        }
       },
 
-      updateMaquina: async (id, maquina) => {
+      updateMaquina: async (id, payload) => {
         try {
-          const updated = await apiFetch(`/api/maquinaria/${id}`, { method: "PUT", body: maquina });
+          const updated = await apiFetch(`/api/maquinaria/${id}`, {
+            method: "PUT",
+            body: payload,
+          });
           const { maquinaria } = getStore();
-          setStore({ maquinaria: maquinaria.map(m => m.id === updated.id ? updated : m) });
+          setStore({
+            maquinaria: (maquinaria || []).map((m) =>
+              m.id === updated.id ? updated : m
+            ),
+          });
           return updated;
-        } catch (err) { console.error("updateMaquina:", err); throw err; }
+        } catch (err) {
+          console.error("updateMaquina:", err);
+          throw err;
+        }
       },
 
       deleteMaquina: async (id) => {
         try {
           await apiFetch(`/api/maquinaria/${id}`, { method: "DELETE" });
           const { maquinaria } = getStore();
-          setStore({ maquinaria: maquinaria.filter(m => m.id !== id) });
+          setStore({
+            maquinaria: (maquinaria || []).filter((m) => m.id !== id),
+          });
           return true;
-        } catch (err) { console.error("deleteMaquina:", err); throw err; }
+        } catch (err) {
+          console.error("deleteMaquina:", err);
+          throw err;
+        }
       },
 
       getMaquinariaAlertas: async () => {
         try {
           const data = await apiFetch("/api/maquinaria/alertas");
-          setStore({ maquinariaAlertas: data });
-          return data;
+          setStore({ maquinariaAlertas: Array.isArray(data) ? data : [] });
+          return getStore().maquinariaAlertas;
         } catch (err) {
           console.error("getMaquinariaAlertas:", err);
           setStore({ maquinariaAlertas: [] });
@@ -473,15 +640,22 @@ const getState = ({ getStore, getActions, setStore }) => {
         }
       },
 
-      // ===== Reporte extra opcional
+      // ===== Reporte extra opcional (si no existe endpoint, devolverá 404)
       getReporteGastoProductos: async ({ desde, hasta, producto_id } = {}) => {
         try {
           const params = new URLSearchParams();
           if (desde) params.append("desde", desde);
           if (hasta) params.append("hasta", hasta);
           if (producto_id) params.append("producto_id", producto_id);
-          const data = await apiFetch(`/api/reportes/gasto-productos${params.toString() ? `?${params}` : ""}`);
-          setStore({ reporteGasto: data || { totales: { sin_iva: 0, con_iva: 0 }, mensual: [] } });
+
+          const data = await apiFetch(
+            `/api/reportes/gasto-productos${params.toString() ? `?${params}` : ""}`
+          );
+
+          setStore({
+            reporteGasto: data || { totales: { sin_iva: 0, con_iva: 0 }, mensual: [] },
+          });
+
           return getStore().reporteGasto;
         } catch (err) {
           console.error("getReporteGastoProductos:", err);
@@ -490,8 +664,311 @@ const getState = ({ getStore, getActions, setStore }) => {
           return fallback;
         }
       },
-    },
-  };
-};
+
+      // ===== CLIENTES
+      getClientes: async (opts = {}) => {
+        if (_loadingClientes) return getStore().clientes;
+        _loadingClientes = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.q) params.set("q", opts.q);
+          if (opts.page) params.set("page", String(opts.page));
+          if (opts.page_size) params.set("page_size", String(opts.page_size));
+
+          const data = await apiFetch(
+            `/api/clientes${params.toString() ? `?${params}` : ""}`
+          );
+          const lista = Array.isArray(data)
+            ? data
+            : Array.isArray(data.items)
+            ? data.items
+            : [];
+          setStore({ clientes: lista });
+          return getStore().clientes;
+        } catch (err) {
+          console.error("getClientes:", err);
+          setStore({ clientes: [] });
+          return [];
+        } finally {
+          _loadingClientes = false;
+        }
+      },
+
+      createCliente: async (cliente) => {
+        try {
+          const created = await apiFetch("/api/clientes", {
+            method: "POST",
+            body: cliente,
+          });
+          const { clientes } = getStore();
+          setStore({ clientes: [created, ...(clientes || [])] });
+          return created;
+        } catch (err) {
+          console.error("createCliente:", err);
+          throw err;
+        }
+      },
+
+      updateCliente: async (id, cliente) => {
+        try {
+          const updated = await apiFetch(`/api/clientes/${id}`, {
+            method: "PUT",
+            body: cliente,
+          });
+          const { clientes } = getStore();
+          setStore({
+            clientes: (clientes || []).map((c) =>
+              c.id === updated.id ? updated : c
+            ),
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateCliente:", err);
+          throw err;
+        }
+      },
+
+      deleteCliente: async (id) => {
+        try {
+          await apiFetch(`/api/clientes/${id}`, { method: "DELETE" });
+          const { clientes } = getStore();
+          setStore({ clientes: (clientes || []).filter((c) => c.id !== id) });
+          return true;
+        } catch (err) {
+          console.error("deleteCliente:", err);
+          throw err;
+        }
+      },
+
+      // ===== SERVICIOS
+      getServicios: async (opts = {}) => {
+        if (_loadingServicios) return getStore().servicios;
+        _loadingServicios = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.q) params.set("q", opts.q);
+          if (opts.page) params.set("page", String(opts.page));
+          if (opts.page_size) params.set("page_size", String(opts.page_size));
+
+          const data = await apiFetch(
+            `/api/servicios${params.toString() ? `?${params}` : ""}`
+          );
+          const lista = Array.isArray(data)
+            ? data
+            : Array.isArray(data.items)
+            ? data.items
+            : [];
+          setStore({ servicios: lista });
+          return getStore().servicios;
+        } catch (err) {
+          console.error("getServicios:", err);
+          setStore({ servicios: [] });
+          return [];
+        } finally {
+          _loadingServicios = false;
+        }
+      },
+
+      createServicio: async (servicio) => {
+        try {
+          const created = await apiFetch("/api/servicios", {
+            method: "POST",
+            body: servicio,
+          });
+          const { servicios } = getStore();
+          setStore({ servicios: [created, ...(servicios || [])] });
+          return created;
+        } catch (err) {
+          console.error("createServicio:", err);
+          throw err;
+        }
+      },
+
+      updateServicio: async (id, servicio) => {
+        try {
+          const updated = await apiFetch(`/api/servicios/${id}`, {
+            method: "PUT",
+            body: servicio,
+          });
+          const { servicios } = getStore();
+          setStore({
+            servicios: (servicios || []).map((s) =>
+              s.id === updated.id ? updated : s
+            ),
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateServicio:", err);
+          throw err;
+        }
+      },
+
+      deleteServicio: async (id) => {
+        try {
+          await apiFetch(`/api/servicios/${id}`, { method: "DELETE" });
+          const { servicios } = getStore();
+          setStore({ servicios: (servicios || []).filter((s) => s.id !== id) });
+          return true;
+        } catch (err) {
+          console.error("deleteServicio:", err);
+          throw err;
+        }
+      },
+
+      // ===== VEHÍCULOS
+      getVehiculos: async (opts = {}) => {
+        if (_loadingVehiculos) return getStore().vehiculos;
+        _loadingVehiculos = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.q) params.set("q", opts.q);
+          if (opts.page) params.set("page", String(opts.page));
+          if (opts.page_size) params.set("page_size", String(opts.page_size));
+
+          const data = await apiFetch(
+            `/api/vehiculos${params.toString() ? `?${params}` : ""}`
+          );
+          const lista = Array.isArray(data)
+            ? data
+            : Array.isArray(data.items)
+            ? data.items
+            : [];
+          setStore({ vehiculos: lista });
+          return getStore().vehiculos;
+        } catch (err) {
+          console.error("getVehiculos:", err);
+          setStore({ vehiculos: [] });
+          return [];
+        } finally {
+          _loadingVehiculos = false;
+        }
+      },
+
+      createVehiculo: async (vehiculo) => {
+        try {
+          const created = await apiFetch("/api/vehiculos", {
+            method: "POST",
+            body: vehiculo,
+          });
+          const { vehiculos } = getStore();
+          setStore({ vehiculos: [created, ...(vehiculos || [])] });
+          return created;
+        } catch (err) {
+          console.error("createVehiculo:", err);
+          throw err;
+        }
+      },
+
+      updateVehiculo: async (id, vehiculo) => {
+        try {
+          const updated = await apiFetch(`/api/vehiculos/${id}`, {
+            method: "PUT",
+            body: vehiculo,
+          });
+          const { vehiculos } = getStore();
+          setStore({
+            vehiculos: (vehiculos || []).map((v) =>
+              v.id === updated.id ? updated : v
+            ),
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateVehiculo:", err);
+          throw err;
+        }
+      },
+
+      deleteVehiculo: async (id) => {
+        try {
+          await apiFetch(`/api/vehiculos/${id}`, { method: "DELETE" });
+          const { vehiculos } = getStore();
+          setStore({ vehiculos: (vehiculos || []).filter((v) => v.id !== id) });
+          return true;
+        } catch (err) {
+          console.error("deleteVehiculo:", err);
+          throw err;
+        }
+      },
+
+      // ===== FACTURAS
+      getFacturas: async (opts = {}) => {
+        if (_loadingFacturas) return getStore().facturas;
+        _loadingFacturas = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.q) params.set("q", opts.q);
+          if (opts.cliente_id) params.set("cliente_id", String(opts.cliente_id));
+          if (opts.desde) params.set("desde", opts.desde);
+          if (opts.hasta) params.set("hasta", opts.hasta);
+          if (opts.page) params.set("page", String(opts.page));
+          if (opts.page_size) params.set("page_size", String(opts.page_size));
+
+          const data = await apiFetch(
+            `/api/facturas${params.toString() ? `?${params}` : ""}`
+          );
+          const lista = Array.isArray(data)
+            ? data
+            : Array.isArray(data.items)
+            ? data.items
+            : [];
+          setStore({ facturas: lista });
+          return getStore().facturas;
+        } catch (err) {
+          console.error("getFacturas:", err);
+          setStore({ facturas: [] });
+          return [];
+        } finally {
+          _loadingFacturas = false;
+        }
+      },
+
+      createFactura: async (factura) => {
+        try {
+          const created = await apiFetch("/api/facturas", {
+            method: "POST",
+            body: factura,
+          });
+          const { facturas } = getStore();
+          setStore({ facturas: [created, ...(facturas || [])] });
+          return created;
+        } catch (err) {
+          console.error("createFactura:", err);
+          throw err;
+        }
+      },
+
+      updateFactura: async (id, factura) => {
+        try {
+          const updated = await apiFetch(`/api/facturas/${id}`, {
+            method: "PUT",
+            body: factura,
+          });
+          const { facturas } = getStore();
+          setStore({
+            facturas: (facturas || []).map((f) =>
+              f.id === updated.id ? updated : f
+            ),
+          });
+          return updated;
+        } catch (err) {
+          console.error("updateFactura:", err);
+          throw err;
+        }
+      },
+
+      deleteFactura: async (id) => {
+        try {
+          await apiFetch(`/api/facturas/${id}`, { method: "DELETE" });
+          const { facturas } = getStore();
+          setStore({ facturas: (facturas || []).filter((f) => f.id !== id) });
+          return true;
+        } catch (err) {
+          console.error("deleteFactura:", err);
+          throw err;
+        }
+      },
+    }, // <-- cierra actions
+  }; // <-- cierra return { store, actions }
+}; // <-- cierra getState
 
 export default getState;

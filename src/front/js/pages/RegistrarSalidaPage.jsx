@@ -144,7 +144,7 @@ const RegistrarSalidaPage = () => {
               {isAdmin && (
                 <button
                   type="button"
-                  className="btn btn-outline-primary mt-4 mt-md-0"
+                  className="btn sw-btn-black mt-4 mt-md-0"
                   onClick={() => setShowNuevo(true)}
                 >
                   + Nuevo producto
@@ -192,7 +192,7 @@ const RegistrarSalidaPage = () => {
           <div className="input-group">
             <button
               type="button"
-              className="btn btn-outline-secondary"
+              className="btn sw-btn-black"
               onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}
               disabled={saving}
             >
@@ -209,7 +209,7 @@ const RegistrarSalidaPage = () => {
             />
             <button
               type="button"
-              className="btn btn-outline-secondary"
+              className="btn sw-btn-black"
               onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}
               disabled={saving}
             >
@@ -262,7 +262,7 @@ const RegistrarSalidaPage = () => {
       <div className="d-flex align-items-center justify-content-between">
         <h5 className="mb-0">Últimas salidas</h5>
         <button
-          className="btn btn-sm btn-outline-secondary"
+          className="btn sw-btn-black"
           onClick={() => actions.getSalidas()}
         >
           Recargar
