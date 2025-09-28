@@ -10,7 +10,6 @@ import Facturas from "./pages/Facturas.jsx";
 import Vehiculos from "./pages/Vehiculos.jsx";
 import AlertasGarantia from "./pages/AlertasGarantia";
 
-
 // Públicas
 import Login from "./pages/login";
 import Signup from "./pages/signup";
@@ -104,6 +103,8 @@ const Layout = () => (
             </PrivateRoute>
           }
         />
+
+        {/* Vehículos: SOLO admin (ajusta allow si quieres incluir encargado) */}
         <Route
           path="/vehiculos"
           element={
@@ -112,6 +113,7 @@ const Layout = () => (
             </PrivateRoute>
           }
         />
+
         {/* Usuarios / Proveedores / Maquinaria: SOLO admin */}
         <Route
           path="/usuarios"
@@ -157,20 +159,23 @@ const Layout = () => (
             </PrivateRoute>
           }
         />
-        <Route
-          path="/alertas-garantia"
-          element={
-            <PrivateRoute allow={["administrador"]}>
-              <AlertasGarantia />
-            </PrivateRoute>
-          }
-        />
+
         {/* Servicios realizados: SOLO admin */}
         <Route
           path="/servicios-realizados"
           element={
             <PrivateRoute allow={["administrador"]}>
               <ServiciosRealizados />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Alertas garantía: SOLO admin */}
+        <Route
+          path="/alertas-garantia"
+          element={
+            <PrivateRoute allow={["administrador"]}>
+              <AlertasGarantia />
             </PrivateRoute>
           }
         />
@@ -185,8 +190,7 @@ const Layout = () => (
           }
         />
 
-        {/* Informes: SOLO admin (globales). 
-            Para empleados/encargados ya está /mis-salidas */}
+        {/* Informes: SOLO admin */}
         <Route
           path="/resumen-entradas"
           element={
@@ -205,22 +209,10 @@ const Layout = () => (
         />
 
         {/* Redirecciones legacy */}
-        <Route
-          path="/entradas/registrar"
-          element={<Navigate to="/entradas" replace />}
-        />
-        <Route
-          path="/salidas/registrar"
-          element={<Navigate to="/salidas" replace />}
-        />
-        <Route
-          path="/informes/entradas"
-          element={<Navigate to="/resumen-entradas" replace />}
-        />
-        <Route
-          path="/informes/salidas"
-          element={<Navigate to="/historial-salidas" replace />}
-        />
+        <Route path="/entradas/registrar" element={<Navigate to="/entradas" replace />} />
+        <Route path="/salidas/registrar" element={<Navigate to="/salidas" replace />} />
+        <Route path="/informes/entradas" element={<Navigate to="/resumen-entradas" replace />} />
+        <Route path="/informes/salidas" element={<Navigate to="/historial-salidas" replace />} />
 
         {/* Pedido bajo stock: SOLO admin */}
         <Route
@@ -233,10 +225,7 @@ const Layout = () => (
         />
 
         {/* 404 */}
-        <Route
-          path="*"
-          element={<h1 className="container mt-4">Not found!</h1>}
-        />
+        <Route path="*" element={<h1 className="container mt-4">Not found!</h1>} />
       </Routes>
     </div>
     <FooterSW />

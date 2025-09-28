@@ -36,6 +36,7 @@ const getState = ({ getStore, getActions, setStore }) => {
   let _loadingServicios = false;
   let _loadingVehiculos = false;
   let _loadingFacturas = false;
+  let _loadingSR = false; // servicios-realizados
 
   // ========= Helper de fetch =========
   async function apiFetch(
@@ -138,6 +139,7 @@ const getState = ({ getStore, getActions, setStore }) => {
       servicios: [],
       facturas: [],
       vehiculos: [],
+      serviciosRealizados: [],
 
       // Informes
       resumenEntradas: [],
@@ -811,6 +813,53 @@ const getState = ({ getStore, getActions, setStore }) => {
           return true;
         } catch (err) {
           console.error("deleteServicio:", err);
+          throw err;
+        }
+      },
+
+      // ===== SERVICIOS REALIZADOS =====
+      getServiciosRealizados: async (opts = {}) => {
+        if (_loadingSR) return getStore().serviciosRealizados;
+        _loadingSR = true;
+        try {
+          const params = new URLSearchParams();
+          if (opts.cliente_id) params.append("cliente_id", String(opts.cliente_id));
+          if (opts.vehiculo_id) params.append("vehiculo_id", String(opts.vehiculo_id));
+          if (opts.desde) params.append("desde", opts.desde);
+          if (opts.hasta) params.append("hasta", opts.hasta);
+          if (
+            opts.facturado === "1" ||
+            opts.facturado === "0" ||
+            opts.facturado === true ||
+            opts.facturado === false
+          ) {
+            params.append("facturado", String(opts.facturado));
+          }
+          const data = await apiFetch(
+            `/api/servicios-realizados${params.toString() ? `?${params}` : ""}`
+          );
+          setStore({
+            serviciosRealizados: Array.isArray(data) ? data : data?.items || [],
+          });
+          return getStore().serviciosRealizados;
+        } catch (err) {
+          console.error("getServiciosRealizados:", err);
+          setStore({ serviciosRealizados: [] });
+          return [];
+        } finally {
+          _loadingSR = false;
+        }
+      },
+
+      createServicioRealizado: async (payload) => {
+        try {
+          const created = await apiFetch("/api/servicios-realizados", {
+            method: "POST",
+            body: payload,
+          });
+          return created;
+        } catch (err) {
+          console.error("createServicioRealizado:", err);
           throw err;
         }
       },

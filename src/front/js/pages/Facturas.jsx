@@ -1,3 +1,4 @@
+// src/front/js/pages/Facturas.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
 const BACKEND = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
@@ -28,6 +29,7 @@ export default function Facturas() {
   const [estado, setEstado] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [filterError, setFilterError] = useState("");
 
   // Listado
   const [loading, setLoading] = useState(false);
@@ -58,7 +60,6 @@ export default function Facturas() {
     porcentaje_iva: 21,
     notas: "",
     lineas: [{ descripcion: "", cantidad: 1, precio_unitario: 0 }],
-    // totales (solo visual; backend recalcula)
     base_imponible: 0,
     importe_iva: 0,
     total: 0,
@@ -126,19 +127,25 @@ export default function Facturas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(form.lineas), form.porcentaje_iva]);
 
+  // ====== Data fetchers ======
   const fetchClientes = async () => {
     setLoadingClientes(true);
     try {
-      // Traemos hasta 1000 para selector (si tienes muchos, cambia a un buscador remoto)
       const url = `${BACKEND}/api/clientes?page=1&page_size=1000`;
       const resp = await fetch(url, { headers: authHeaders() });
-      const data = await resp.json();
-      setClientes(data.items || []);
-    } catch (_) {
+      if (!resp.ok) throw new Error(`Error ${resp.status}`);
+      const data = (await resp.json()) || {};
+      setClientes(Array.isArray(data.items) ? data.items : []);
+    } catch {
       setClientes([]);
     } finally {
       setLoadingClientes(false);
     }
+  };
+
+  const fechasValidas = (d, h) => {
+    if (!d || !h) return true;
+    return new Date(d) <= new Date(h);
   };
 
   const fetchFacturas = async () => {
@@ -157,8 +164,8 @@ export default function Facturas() {
       const resp = await fetch(url, { headers: authHeaders() });
       if (!resp.ok) throw new Error(`Error ${resp.status}`);
       const data = await resp.json();
-      setItems(data.items || []);
-      setTotal(data.total || 0);
+      setItems(Array.isArray(data.items) ? data.items : []);
+      setTotal(Number(data.total || 0));
     } catch (e) {
       console.error("fetchFacturas:", e);
       setItems([]);
@@ -168,16 +175,35 @@ export default function Facturas() {
     }
   };
 
+  // Init
   useEffect(() => {
     fetchClientes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Paginación
   useEffect(() => {
     fetchFacturas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
+  // Auto-aplicar filtros con debounce
+  useEffect(() => {
+    if (!fechasValidas(desde, hasta)) {
+      setFilterError("La fecha 'Desde' no puede ser posterior a 'Hasta'.");
+      return;
+    } else {
+      setFilterError("");
+    }
+    const t = setTimeout(() => {
+      setPage(1);
+      fetchFacturas();
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, clienteId, estado, desde, hasta]);
+
+  // ====== UI handlers ======
   const openCreate = () => {
     resetForm();
     setShowForm(true);
@@ -208,11 +234,12 @@ export default function Facturas() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setErr("");
+
     if (!form.cliente_id) return setErr("Selecciona un cliente.");
     if (!form.fecha) return setErr("La fecha es obligatoria.");
     if (!Array.isArray(form.lineas) || form.lineas.length === 0)
       return setErr("La factura necesita al menos una línea.");
-    if (form.lineas.some((ln) => !ln.descripcion.trim()))
+    if (form.lineas.some((ln) => !(ln.descripcion || "").trim()))
       return setErr("Cada línea debe tener descripción.");
 
     setSaving(true);
@@ -232,21 +259,16 @@ export default function Facturas() {
         })),
       };
 
-      let resp, data;
-      if (form.id) {
-        resp = await fetch(`${BACKEND}/api/facturas/${form.id}`, {
-          method: "PUT",
-          headers: authHeaders(),
-          body: JSON.stringify(payload),
-        });
-      } else {
-        resp = await fetch(`${BACKEND}/api/facturas`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify(payload),
-        });
-      }
-      data = await resp.json().catch(() => ({}));
+      const url = form.id
+        ? `${BACKEND}/api/facturas/${form.id}`
+        : `${BACKEND}/api/facturas`;
+
+      const resp = await fetch(url, {
+        method: form.id ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data?.msg || `Error ${resp.status}`);
 
       setShowForm(false);
@@ -317,6 +339,9 @@ export default function Facturas() {
                   </option>
                 ))}
               </select>
+              {loadingClientes && (
+                <div className="small text-muted mt-1">Cargando clientes…</div>
+              )}
             </div>
             <div className="col-md-2">
               <label className="form-label">Estado</label>
@@ -355,6 +380,13 @@ export default function Facturas() {
               <button
                 className="btn btn-outline-secondary me-2"
                 onClick={() => {
+                  if (!fechasValidas(desde, hasta)) {
+                    setFilterError(
+                      "La fecha 'Desde' no puede ser posterior a 'Hasta'."
+                    );
+                    return;
+                  }
+                  setFilterError("");
                   setPage(1);
                   fetchFacturas();
                 }}
@@ -370,6 +402,7 @@ export default function Facturas() {
                   setEstado("");
                   setDesde("");
                   setHasta("");
+                  setFilterError("");
                   setPage(1);
                   fetchFacturas();
                 }}
@@ -380,6 +413,10 @@ export default function Facturas() {
           </div>
         </div>
       </div>
+
+      {filterError && (
+        <div className="alert alert-warning py-2">{filterError}</div>
+      )}
 
       {/* Listado */}
       <div className="card">
@@ -484,12 +521,30 @@ export default function Facturas() {
                   <h5 className="modal-title">
                     {form.id ? "Editar factura" : "Nueva factura"}
                   </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowForm(false)}
-                  ></button>
+                  <div className="d-flex align-items-center gap-2">
+                    {form.id && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={() =>
+                          window.open(
+                            `${BACKEND}/api/facturas/${form.id}/pdf`,
+                            "_blank"
+                          )
+                        }
+                        title="Descargar PDF"
+                      >
+                        <i className="fas fa-file-pdf" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowForm(false)}
+                    ></button>
+                  </div>
                 </div>
+
                 <div className="modal-body">
                   {err && <div className="alert alert-danger py-2">{err}</div>}
 
@@ -706,23 +761,6 @@ export default function Facturas() {
                     </div>
                   </div>
                 </div>
-                <button
-                  className="btn btn-sm btn-outline-primary me-2"
-                  onClick={() =>
-                    window.open(`${BACKEND}/api/facturas/${f.id}/pdf`, "_blank")
-                  }
-                >
-                  <i className="fas fa-file-pdf" />
-                </button>
-                <button
-                  className="btn btn-sm btn-outline-primary me-2"
-                  onClick={() =>
-                    window.open(`${BACKEND}/api/facturas/${f.id}/pdf`, "_blank")
-                  }
-                  title="Descargar PDF"
-                >
-                  <i className="fas fa-file-pdf" />
-                </button>
 
                 <div className="modal-footer">
                   <button
