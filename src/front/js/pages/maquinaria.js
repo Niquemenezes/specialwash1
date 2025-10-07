@@ -2,21 +2,34 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Context } from "../store/appContext";
 import MaquinariaAlertasWidget from "../component/MaquinariaAlertasWidget";
 
-
 // ===== Helpers =====
+const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
+const toNumber = (v, fallback = 0) => {
+  if (v === "" || v === null || v === undefined) return fallback;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : fallback;
+};
+
 const numberOrNull = (v) => {
   if (v === "" || v === null || v === undefined) return null;
-  const n = Number(v);
+  const n = Number(String(v).replace(",", "."));
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * Cálculo correcto:
+ * 1) aplicar DESCUENTO sobre el precio sin IVA
+ * 2) sumar IVA sobre la base ya descontada
+ * Final = (precio_sin_iva * (1 - d)) * (1 + i)
+ */
 const calcFinal = (precio, iva, dsc) => {
-  const p = Number(precio || 0);
-  const i = Number(iva || 0) / 100;
-  const d = Number(dsc || 0) / 100;
-  const bruto = p * (1 + i);
-  const fin = bruto * (1 - d);
-  return Math.round(fin * 100) / 100;
+  const p = toNumber(precio, 0);
+  const i = clamp(toNumber(iva, 0), 0, 100) / 100;
+  const d = clamp(toNumber(dsc, 0), 0, 100) / 100;
+  const baseConDescuento = p * (1 - d);
+  const final = baseConDescuento * (1 + i);
+  return Math.round(final * 100) / 100; // 2 decimales
 };
 
 const daysTo = (dateStr) => {
@@ -123,9 +136,9 @@ export default function Maquinaria() {
       numero_factura: m.numero_factura || "",
       tienda: m.tienda || "",
       fecha_garantia_fin: (m.fecha_garantia_fin || "").slice(0, 10),
-      precio_sin_iva: m.precio_sin_iva ?? "",
-      porcentaje_iva: m.porcentaje_iva ?? "",
-      descuento: m.descuento ?? "",
+      precio_sin_iva: (m.precio_sin_iva ?? "")?.toString(),
+      porcentaje_iva: (m.porcentaje_iva ?? "")?.toString(),
+      descuento: (m.descuento ?? "")?.toString(),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -146,6 +159,11 @@ export default function Maquinaria() {
     e?.preventDefault?.();
     if (!form.nombre.trim()) return alert("El nombre es obligatorio");
 
+    // Saneo de números (permite coma) y clamp %
+    const precioSinIva = numberOrNull(form.precio_sin_iva);
+    const porcentajeIva = numberOrNull(form.porcentaje_iva);
+    const descuento = numberOrNull(form.descuento);
+
     const payload = {
       nombre: form.nombre.trim(),
       tipo: form.tipo.trim() || undefined,
@@ -160,11 +178,11 @@ export default function Maquinaria() {
       numero_factura: form.numero_factura.trim() || undefined,
       tienda: form.tienda.trim() || undefined,
       fecha_garantia_fin: form.fecha_garantia_fin || undefined, // YYYY-MM-DD
-      precio_sin_iva: numberOrNull(form.precio_sin_iva),
-      porcentaje_iva: numberOrNull(form.porcentaje_iva),
-      descuento: numberOrNull(form.descuento),
-      // opcional
-      precio_final: calcFinal(form.precio_sin_iva, form.porcentaje_iva, form.descuento),
+      precio_sin_iva: precioSinIva,
+      porcentaje_iva: porcentajeIva != null ? clamp(porcentajeIva, 0, 100) : null,
+      descuento: descuento != null ? clamp(descuento, 0, 100) : null,
+      // opcional calculado
+      precio_final: calcFinal(precioSinIva, porcentajeIva, descuento),
     };
 
     try {
@@ -195,9 +213,8 @@ export default function Maquinaria() {
 
   return (
     <div className="container py-4">
-      
- {/* Alertas solo admin */}
-<MaquinariaAlertasWidget />
+      {/* Alertas solo admin */}
+      <MaquinariaAlertasWidget />
 
       <div className="d-flex align-items-center justify-content-between mb-3">
         <h2 className="m-0">Maquinaria</h2>
@@ -391,6 +408,11 @@ export default function Maquinaria() {
               items.map((m) => {
                 const st = warrantyStatus(m.fecha_garantia_fin);
                 const rowClass = st.code === "expired" ? "table-danger" : st.code === "soon" ? "table-warning" : "";
+                const final =
+                  m.precio_final != null
+                    ? Number(m.precio_final)
+                    : calcFinal(m.precio_sin_iva, m.porcentaje_iva, m.descuento);
+
                 return (
                   <tr key={m.id} className={rowClass}>
                     <td>{m.nombre}</td>
@@ -406,11 +428,7 @@ export default function Maquinaria() {
                     <td>{m.precio_sin_iva != null ? Number(m.precio_sin_iva).toFixed(2) : "-"}</td>
                     <td>{m.porcentaje_iva != null ? m.porcentaje_iva : "-"}</td>
                     <td>{m.descuento != null ? m.descuento : "-"}</td>
-                    <td>
-                      {m.precio_final != null
-                        ? Number(m.precio_final).toFixed(2)
-                        : calcFinal(m.precio_sin_iva, m.porcentaje_iva, m.descuento).toFixed(2)}
-                    </td>
+                    <td>{Number.isFinite(final) ? final.toFixed(2) : "-"}</td>
                     <td className="text-end">
                       <button className="btn btn-outline-primary btn-sm me-2" onClick={() => startEdit(m)}>
                         <i className="fa-solid fa-pen-to-square" /> Editar
