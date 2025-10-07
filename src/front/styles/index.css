@@ -26,3 +26,46 @@ body {
     color: white;
     z-index: 100;
   }
+
+  :root{
+  --sw-bg:#000; --sw-bg-2:#0a0a0a; --sw-gold:#d4af37; --sw-text:#fff;
+}
+
+/* NAVBAR */
+.sw-navbar {
+  background: linear-gradient(180deg, var(--sw-bg) 0%, var(--sw-bg-2) 100%);
+  border-bottom: 2px solid var(--sw-gold);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.sw-navlink{
+  color:#f2f2f2 !important;
+  padding-inline: .75rem !important;
+  padding-block: .5rem !important;
+}
+.sw-navlink.active{ color: var(--sw-gold) !important; }
+.sw-btn-gold{
+  background: var(--sw-gold);
+  color:#000;
+  border:none; border-radius: 14px; padding:.6rem 1rem; font-weight:600;
+}
+
+/* TAPS GRANDES EN MÓVIL */
+@media (max-width: 576px){
+  .navbar .nav-link, .navbar .btn { min-height: 44px; }
+}
+
+/* TARJETAS (Home) */
+.card.hover-shadow{ transition: transform .15s ease, box-shadow .15s ease; }
+.card.hover-shadow:hover{ transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+
+/* TABLAS: versión “cards” en móvil */
+@media (max-width: 576px){
+  .table-responsive{ display:none; }    /* oculta tabla pequeña */
+  .mobile-cards{ display:block; }
+}
+@media (min-width: 577px){
+  .mobile-cards{ display:none; }
+}
+
+/* INPUTS CÓMODOS EN MÓVIL */
+input, select, button { font-size: 16px; } /* evita zoom iOS */

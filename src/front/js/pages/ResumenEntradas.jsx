@@ -4,7 +4,9 @@ import { Context } from "../store/appContext";
 const number = (v) => (v === null || v === undefined || v === "" ? 0 : Number(v) || 0);
 const fmtDateTime = (s) => {
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "-" : d.toLocaleString();
+  return isNaN(d.getTime())
+    ? "-"
+    : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 };
 
 export default function ResumenEntradas() {
@@ -223,7 +225,7 @@ export default function ResumenEntradas() {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Vista escritorio: tabla */}
       <div className="table-responsive mt-3">
         <table className="table align-middle">
           <thead>
@@ -276,6 +278,33 @@ export default function ResumenEntradas() {
             </tfoot>
           )}
         </table>
+      </div>
+
+      {/* Vista móvil: tarjetas */}
+      <div className="mobile-cards mt-3">
+        {loading && <div className="text-center text-muted py-3">Cargando…</div>}
+        {!loading && filtradas.length === 0 && (
+          <div className="text-center text-muted py-3">Sin resultados.</div>
+        )}
+        {!loading && filtradas.map((r) => (
+          <div key={r.id} className="card mb-2">
+            <div className="card-body py-3">
+              <div className="d-flex justify-content-between">
+                <strong>{r.producto?.nombre || "-"}</strong>
+                <span className="badge bg-light text-dark">x{r.cantidad}</span>
+              </div>
+              <div className="small text-muted mt-1">{fmtDateTime(r.fecha)}</div>
+              {r.proveedor?.nombre && (
+                <div className="small mt-1">Proveedor: {r.proveedor.nombre}</div>
+              )}
+              <div className="small mt-1">
+                Sin IVA: {r.precio_sin_iva ? r.precio_sin_iva.toFixed(2) : "-"} · IVA: {r.valor_iva ? r.valor_iva.toFixed(2) : "-"} ({r.porcentaje_iva || 0}%)
+              </div>
+              <div className="small mt-1">Con IVA: {r.precio_con_iva ? r.precio_con_iva.toFixed(2) : "-"}</div>
+              {r.numero_albaran && <div className="small mt-1">Doc: {r.numero_albaran}</div>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

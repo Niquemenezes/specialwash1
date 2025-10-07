@@ -5,7 +5,9 @@ import ProductoFormModal from "../component/ProductoFormModal.jsx";
 const fmtDateTime = (s) => {
   if (!s) return "-";
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "-" : d.toLocaleString();
+  return isNaN(d.getTime())
+    ? "-"
+    : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 };
 
 const getRolFromStorage = () =>
@@ -155,6 +157,7 @@ const RegistrarSalidaPage = () => {
         </div>
       </div>
 
+      {/* Formulario */}
       <form className="row g-3" onSubmit={handleSubmit}>
         <div className="col-md-6">
           <label className="form-label">Producto</label>
@@ -250,8 +253,28 @@ const RegistrarSalidaPage = () => {
           />
         </div>
 
-        <div className="col-12">
+        {/* Botón escritorio (≥576px) */}
+        <div className="col-12 d-none d-sm-block">
           <button className="btn btn-primary" disabled={saving}>
+            {saving ? "Guardando..." : "Registrar salida"}
+          </button>
+        </div>
+
+        {/* Botón fijo en móvil (<576px) */}
+        <div
+          className="d-sm-none"
+          style={{
+            position: "sticky",
+            bottom: "calc(env(safe-area-inset-bottom, 0) + 60px)", // si tienes footer fijo de 60px
+            left: 0,
+            right: 0,
+            background: "#fff",
+            padding: "0.75rem",
+            boxShadow: "0 -6px 18px rgba(0,0,0,.1)",
+            zIndex: 2,
+          }}
+        >
+          <button className="btn btn-primary w-100" disabled={saving} style={{ borderRadius: 14 }}>
             {saving ? "Guardando..." : "Registrar salida"}
           </button>
         </div>
@@ -269,6 +292,7 @@ const RegistrarSalidaPage = () => {
         </button>
       </div>
 
+      {/* Vista escritorio: tabla */}
       <div className="table-responsive mt-2">
         <table className="table align-middle">
           <thead>
@@ -292,6 +316,27 @@ const RegistrarSalidaPage = () => {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Vista móvil: tarjetas */}
+      <div className="mobile-cards mt-3">
+        {(store.salidas || []).map((s) => {
+          const fecha = fmtDateTime(s.fecha);
+          const nombre = s.producto_nombre || s.producto?.nombre || `#${s.producto_id}`;
+          return (
+            <div key={s.id} className="card mb-2">
+              <div className="card-body py-3">
+                <div className="d-flex justify-content-between align-items-start">
+                  <strong className="me-2">{nombre}</strong>
+                  <span className="badge bg-light text-dark">x{s.cantidad}</span>
+                </div>
+                <div className="small text-muted mt-1">{fecha}</div>
+                <div className="small mt-1">Retirado por: {s.usuario_nombre || `#${s.usuario_id || "-"}`}</div>
+                {s.observaciones && <div className="small mt-1">Obs: {s.observaciones}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Modal: nuevo producto (solo visible si lo abres) */}

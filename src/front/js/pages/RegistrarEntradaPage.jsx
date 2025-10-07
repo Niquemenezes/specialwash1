@@ -3,23 +3,27 @@ import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../store/appContext";
 import ProductoFormModal from "../component/ProductoFormModal.jsx";
 
-// === Formateador robusto fecha+hora (ISO, epoch, string) ===
+// Formateador robusto fecha+hora (ISO, epoch, string)
 const fmtDateTime = (v) => {
   if (v == null) return "-";
   if (typeof v === "number") {
     const ms = v < 2_000_000_000 ? v * 1000 : v;
     const d = new Date(ms);
-    return isNaN(d) ? String(v) : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+    return isNaN(d)
+      ? String(v)
+      : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
   }
   if (typeof v === "string") {
-    // ISO 8601
     if (/^\d{4}-\d{2}-\d{2}T/.test(v)) {
       const d = new Date(v);
-      return isNaN(d) ? v : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+      return isNaN(d)
+        ? v
+        : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
     }
-    // "YYYY-MM-DD HH:mm:ss"
     const d = new Date(v.replace(" ", "T"));
-    return isNaN(d) ? v : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+    return isNaN(d)
+      ? v
+      : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
   }
   return String(v);
 };
@@ -29,28 +33,27 @@ const numOrEmpty = (x) => (x === "" || x === null || x === undefined ? "" : x);
 const RegistrarEntradaPage = () => {
   const { store, actions } = useContext(Context);
 
-  // --- filtro/buscador + selección
+  // filtro/buscador + selección
   const [filtro, setFiltro] = useState("");
   const [productoId, setProductoId] = useState("");
 
-  // --- formulario
+  // formulario
   const [form, setForm] = useState({
     producto_id: "",
     proveedor_id: "",
     cantidad: 1,
     tipo_documento: "albaran",
     numero_documento: "",
-    // precios / descuentos
     precio_bruto_sin_iva: "",
     descuento_porcentaje: "",
     descuento_importe: "",
     precio_sin_iva: "",
     iva_porcentaje: "21",
-    precio_con_iva: ""
+    precio_con_iva: "",
   });
   const [saving, setSaving] = useState(false);
 
-  // --- modal “nuevo producto”
+  // modal “nuevo producto”
   const [showNuevo, setShowNuevo] = useState(false);
 
   useEffect(() => {
@@ -81,10 +84,13 @@ const RegistrarEntradaPage = () => {
 
   // sincronizar form.producto_id con select local
   useEffect(() => {
-    setForm((f) => ({ ...f, producto_id: productoId ? Number(productoId) : "" }));
+    setForm((f) => ({
+      ...f,
+      producto_id: productoId ? Number(productoId) : "",
+    }));
   }, [productoId]);
 
-  // --- Recalcular importes derivados cuando cambien precios/iva/desc. ---
+  // Recalcular importes derivados cuando cambien precios/iva/desc.
   useEffect(() => {
     const {
       precio_bruto_sin_iva,
@@ -92,7 +98,7 @@ const RegistrarEntradaPage = () => {
       descuento_importe,
       precio_sin_iva,
       iva_porcentaje,
-      precio_con_iva
+      precio_con_iva,
     } = form;
 
     const toNum = (v) => {
@@ -119,7 +125,7 @@ const RegistrarEntradaPage = () => {
       }
     }
 
-    // 2) Calcular precio_sin_iva = bruto - descImp (si ambos existen y neto no se metió manual)
+    // 2) Calcular precio_sin_iva = bruto - descImp
     const descImpFinal = toNum(next.descuento_importe);
     if (bruto != null && descImpFinal != null) {
       const calcNeto = +(bruto - descImpFinal).toFixed(2);
@@ -129,7 +135,7 @@ const RegistrarEntradaPage = () => {
       }
     }
 
-    // 3) Calcular precio_con_iva = neto * (1 + iva/100) si neto e iva existen
+    // 3) Calcular precio_con_iva = neto * (1 + iva/100)
     const netoFinal = toNum(next.precio_sin_iva);
     if (netoFinal != null && ivaPct != null) {
       const calcConIva = +(netoFinal * (1 + ivaPct / 100)).toFixed(2);
@@ -147,12 +153,11 @@ const RegistrarEntradaPage = () => {
     form.descuento_importe,
     form.precio_sin_iva,
     form.iva_porcentaje,
-    form.precio_con_iva
+    form.precio_con_iva,
   ]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Permitimos vacío "", pero si no, guardamos como string numérico; el casting se hace en submit
     setForm((f) => ({ ...f, [name]: value }));
   };
 
@@ -164,8 +169,8 @@ const RegistrarEntradaPage = () => {
     }
     setSaving(true);
     try {
-      // Normalizar números: convertir "" -> null, y strings numéricos -> Number
-      const toNumOrNull = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
+      const toNumOrNull = (v) =>
+        v === "" || v === null || v === undefined ? null : Number(v);
 
       const body = {
         ...form,
@@ -178,15 +183,13 @@ const RegistrarEntradaPage = () => {
         precio_sin_iva: toNumOrNull(form.precio_sin_iva),
         iva_porcentaje: toNumOrNull(form.iva_porcentaje),
         precio_con_iva: toNumOrNull(form.precio_con_iva),
-        // backend usa numero_albaran; mantenemos compat:
-        numero_albaran: form.numero_documento || null
+        numero_albaran: form.numero_documento || null, // compat backend
       };
 
       const res = await actions.registrarEntrada(body);
       const stock = res?.producto?.stock_actual ?? "—";
       alert("Entrada registrada. Stock actual: " + stock);
 
-      // limpiar variables, mantener selecciones básicas
       setForm((f) => ({
         ...f,
         cantidad: 1,
@@ -195,10 +198,10 @@ const RegistrarEntradaPage = () => {
         descuento_porcentaje: "",
         descuento_importe: "",
         precio_sin_iva: "",
-        precio_con_iva: ""
+        precio_con_iva: "",
       }));
       actions.getEntradas();
-      actions.getProductos(); // refresca stock en pantalla
+      actions.getProductos();
     } catch (e2) {
       alert("Error: " + e2.message);
     } finally {
@@ -209,31 +212,31 @@ const RegistrarEntradaPage = () => {
   const handleNuevoSaved = async () => {
     setShowNuevo(false);
     await actions.getProductos();
-    // (opcional) podrías seleccionar el recién creado por nombre aquí
   };
 
-  // === Lista de entradas ORDENADA (última primero) sin mutar el store ===
-  // === Lista de entradas ORDENADA (última primero) sin mutar el store ===
-const entradasOrdenadas = useMemo(() => {
-  const list = store.entradas || [];
-  const toTS = (x) => {
-    if (!x) return 0;
-    if (typeof x === "number") return x < 2_000_000_000 ? x * 1000 : x;
-    if (typeof x === "string") {
-      if (/^\d{4}-\d{2}-\d{2}T/.test(x)) {
-        const d = new Date(x); return isNaN(d) ? 0 : d.getTime();
+  // Lista de entradas ORDENADA (última primero)
+  const entradasOrdenadas = useMemo(() => {
+    const list = store.entradas || [];
+    const toTS = (x) => {
+      if (!x) return 0;
+      if (typeof x === "number") return x < 2_000_000_000 ? x * 1000 : x;
+      if (typeof x === "string") {
+        if (/^\d{4}-\d{2}-\d{2}T/.test(x)) {
+          const d = new Date(x);
+          return isNaN(d) ? 0 : d.getTime();
+        }
+        const d = new Date(x.replace(" ", "T"));
+        return isNaN(d) ? 0 : d.getTime();
       }
-      const d = new Date(x.replace(" ", "T")); return isNaN(d) ? 0 : d.getTime();
-    }
-    return 0;
-  };
-  return [...list].sort((a, b) => {
-    const ta = toTS(a.fecha || a.created_at || a.fecha_entrada || a.fecha_registro || a.timestamp);
-    const tb = toTS(b.fecha || b.created_at || b.fecha_entrada || b.fecha_registro || b.timestamp);
-    if (tb !== ta) return tb - ta;
-    return (b.id || 0) - (a.id || 0);
-  });
-}, [store.entradas]);
+      return 0;
+    };
+    return [...list].sort((a, b) => {
+      const ta = toTS(a.fecha || a.created_at || a.fecha_entrada || a.fecha_registro || a.timestamp);
+      const tb = toTS(b.fecha || b.created_at || b.fecha_entrada || b.fecha_registro || b.timestamp);
+      if (tb !== ta) return tb - ta;
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [store.entradas]);
 
   return (
     <div className="container py-4">
@@ -284,9 +287,8 @@ const entradasOrdenadas = useMemo(() => {
                 </option>
               ))}
             </select>
-            {/* info opcional de stock */}
             {productoId && (() => {
-              const p = (store.productos || []).find(x => x.id === Number(productoId));
+              const p = (store.productos || []).find((x) => x.id === Number(productoId));
               return p ? (
                 <small className="text-muted d-block mt-1">
                   Stock actual: <strong>{p.stock_actual}</strong>
@@ -305,7 +307,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
             >
               <option value="">—</option>
-              {(store.proveedores || []).map(pr => (
+              {(store.proveedores || []).map((pr) => (
                 <option key={pr.id} value={pr.id}>{pr.nombre}</option>
               ))}
             </select>
@@ -317,7 +319,7 @@ const entradasOrdenadas = useMemo(() => {
               <button
                 type="button"
                 className="btn btn-outline-secondary"
-                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}
+                onClick={() => setForm((f) => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 1) - 1) }))}
               >−</button>
               <input
                 type="number"
@@ -331,7 +333,7 @@ const entradasOrdenadas = useMemo(() => {
               <button
                 type="button"
                 className="btn btn-outline-secondary"
-                onClick={() => setForm(f => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}
+                onClick={() => setForm((f) => ({ ...f, cantidad: Math.max(1, Number(f.cantidad || 0) + 1) }))}
               >+</button>
             </div>
           </div>
@@ -358,6 +360,7 @@ const entradasOrdenadas = useMemo(() => {
               value={form.numero_documento}
               onChange={handleChange}
               placeholder="Ej. ALB-2025-001"
+              autoComplete="one-time-code"
             />
           </div>
 
@@ -371,6 +374,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="Ej. 100.00"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
 
@@ -383,6 +387,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="Ej. 10"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
 
@@ -395,6 +400,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="Ej. 5.50"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
 
@@ -407,6 +413,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="Ej. 90.00"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
 
@@ -419,6 +426,7 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="21"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
 
@@ -431,12 +439,39 @@ const entradasOrdenadas = useMemo(() => {
               onChange={handleChange}
               placeholder="Ej. 108.90"
               inputMode="decimal"
+              autoComplete="off"
             />
           </div>
         </div>
 
-        <div className="d-flex gap-2">
+        {/* Botón normal en escritorio (≥576px) */}
+        <div className="d-none d-sm-flex gap-2">
           <button className="btn btn-primary" type="submit" disabled={saving}>
+            {saving ? "Guardando..." : "Registrar entrada"}
+          </button>
+        </div>
+
+        {/* Botón fijo en móvil (<576px). 
+            Tip: si tienes footer fijo de 60px, este bottom evita solape. */}
+        <div
+          className="d-sm-none"
+          style={{
+            position: "sticky",
+            bottom: "calc(env(safe-area-inset-bottom, 0) + 60px)",
+            left: 0,
+            right: 0,
+            background: "#fff",
+            padding: "0.75rem",
+            boxShadow: "0 -6px 18px rgba(0,0,0,.1)",
+            zIndex: 2,
+          }}
+        >
+          <button
+            className="btn btn-primary w-100"
+            type="submit"
+            disabled={saving}
+            style={{ borderRadius: 14 }}
+          >
             {saving ? "Guardando..." : "Registrar entrada"}
           </button>
         </div>
@@ -446,11 +481,15 @@ const entradasOrdenadas = useMemo(() => {
 
       <div className="d-flex align-items-center justify-content-between">
         <h5 className="mb-0">Últimas entradas</h5>
-        <button className="btn btn-sm btn-outline-secondary" onClick={() => actions.getEntradas()}>
+        <button
+          className="btn btn-sm btn-outline-secondary"
+          onClick={() => actions.getEntradas()}
+        >
           Recargar
         </button>
       </div>
 
+      {/* Vista de escritorio: tabla */}
       <div className="table-responsive mt-2">
         <table className="table align-middle">
           <thead>
@@ -467,21 +506,46 @@ const entradasOrdenadas = useMemo(() => {
                 <td>
                   {fmtDateTime(
                     e.fecha ||
-                    e.created_at ||
-                    e.fecha_entrada ||
-                    e.fecha_registro ||
-                    e.timestamp
+                      e.created_at ||
+                      e.fecha_entrada ||
+                      e.fecha_registro ||
+                      e.timestamp
                   )}
                 </td>
                 <td>{e.producto?.nombre || e.producto_nombre || `#${e.producto_id}`}</td>
                 <td className="text-end">{e.cantidad}</td>
                 <td>
-                  {(e.tipo_documento || e.tipo || "-")} {e.numero_documento || e.numero_albaran || ""}
+                  {(e.tipo_documento || e.tipo || "-")}{" "}
+                  {e.numero_documento || e.numero_albaran || ""}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Vista móvil: tarjetas */}
+      <div className="mobile-cards mt-3">
+        {entradasOrdenadas.map((e) => {
+          const fecha = fmtDateTime(
+            e.fecha || e.created_at || e.fecha_entrada || e.fecha_registro || e.timestamp
+          );
+          const nombre = e.producto?.nombre || e.producto_nombre || `#${e.producto_id}`;
+          const doc = `${e.tipo_documento || e.tipo || "-"} ${e.numero_documento || e.numero_albaran || ""}`.trim();
+
+          return (
+            <div key={e.id} className="card mb-2">
+              <div className="card-body py-3">
+                <div className="d-flex justify-content-between align-items-start">
+                  <strong className="me-2">{nombre}</strong>
+                  <span className="badge bg-light text-dark">x{e.cantidad}</span>
+                </div>
+                <div className="small text-muted mt-1">{fecha}</div>
+                {!!doc && <div className="small mt-1">{doc}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Modal: nuevo producto */}

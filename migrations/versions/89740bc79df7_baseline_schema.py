@@ -1,8 +1,8 @@
-"""base schema (user.activo, proveedores+, maquinaria)
+"""baseline schema
 
-Revision ID: 50c58917a996
+Revision ID: 89740bc79df7
 Revises: 
-Create Date: 2025-09-02 18:00:15.151325
+Create Date: 2025-10-06 14:18:01.086734
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '50c58917a996'
+revision = '89740bc79df7'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -29,6 +29,7 @@ def upgrade():
     sa.Column('estado', sa.String(length=50), nullable=True),
     sa.Column('fecha_compra', sa.Date(), nullable=True),
     sa.Column('notas', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('producto',
@@ -37,6 +38,7 @@ def upgrade():
     sa.Column('categoria', sa.String(length=120), nullable=True),
     sa.Column('stock_minimo', sa.Integer(), nullable=True),
     sa.Column('stock_actual', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('proveedor',
@@ -63,7 +65,8 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('producto_id', sa.Integer(), nullable=False),
     sa.Column('proveedor_id', sa.Integer(), nullable=True),
-    sa.Column('fecha', sa.DateTime(), nullable=True),
+    sa.Column('fecha', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('cantidad', sa.Integer(), nullable=False),
     sa.Column('numero_albaran', sa.String(length=120), nullable=True),
     sa.Column('precio_sin_iva', sa.Float(), nullable=True),
@@ -76,9 +79,10 @@ def upgrade():
     )
     op.create_table('salida',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('fecha', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('producto_id', sa.Integer(), nullable=False),
-    sa.Column('usuario_id', sa.Integer(), nullable=True),
-    sa.Column('fecha', sa.DateTime(), nullable=True),
+    sa.Column('usuario_id', sa.Integer(), nullable=False),
     sa.Column('cantidad', sa.Integer(), nullable=False),
     sa.Column('observaciones', sa.String(length=255), nullable=True),
     sa.ForeignKeyConstraint(['producto_id'], ['producto.id'], ),

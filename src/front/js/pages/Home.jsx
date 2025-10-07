@@ -37,13 +37,13 @@ export default function Home() {
 
   const tiles = useMemo(() => ([
     { to: "/productos",           title: "Productos",           icon: "fa-box-open",      roles: ["empleado","administrador"] },
-    { to: "/entradas/registrar",  title: "Registrar Entrada",   icon: "fa-sign-in-alt",   roles: ["administrador"] },
-    { to: "/salidas/registrar",   title: "Registrar Salida",    icon: "fa-sign-out-alt",  roles: ["empleado","administrador"] },
+    { to: "/entradas",            title: "Registrar Entrada",   icon: "fa-sign-in-alt",   roles: ["administrador"] },
+    { to: "/salidas",             title: "Registrar Salida",    icon: "fa-sign-out-alt",  roles: ["empleado","administrador"] },
     { to: "/usuarios",            title: "Usuarios",            icon: "fa-user-friends",  roles: ["administrador"] },
     { to: "/proveedores",         title: "Proveedores",         icon: "fa-file-alt",      roles: ["administrador"] },
     { to: "/maquinaria",          title: "Maquinaria",          icon: "fa-cogs",          roles: ["administrador"] },
-    { to: "/informes/entradas",   title: "Informe Entradas",    icon: "fa-file-alt",      roles: ["administrador"] },
-    { to: "/informes/salidas",    title: "Historial Salidas",   icon: "fa-file-alt",      roles: ["administrador"] },
+    { to: "/resumen-entradas",    title: "Resumen Entradas",    icon: "fa-file-alt",      roles: ["administrador"] },
+    { to: "/historial-salidas",   title: "Historial Salidas",   icon: "fa-file-alt",      roles: ["administrador"] },
   ]), []);
 
   // Si NO hay token: mostramos todas las tarjetas (la página es pública)
@@ -71,6 +71,7 @@ export default function Home() {
           </div>
         ))}
       </div>
+      
 
       {!token && (
         <p className="text-center text-muted mt-3">

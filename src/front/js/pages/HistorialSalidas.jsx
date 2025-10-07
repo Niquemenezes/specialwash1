@@ -6,7 +6,9 @@ const num = (v) => (v === null || v === undefined || v === "" ? 0 : Number(v) ||
 const fmtDateTime = (s) => {
   if (!s) return "-";
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "-" : d.toLocaleString();
+  return isNaN(d.getTime())
+    ? "-"
+    : d.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 };
 
 export default function HistorialSalidas() {
@@ -159,7 +161,7 @@ export default function HistorialSalidas() {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Vista escritorio: tabla */}
       <div className="table-responsive mt-3">
         <table className="table align-middle">
           <thead>
@@ -201,6 +203,27 @@ export default function HistorialSalidas() {
             }
           </tbody>
         </table>
+      </div>
+
+      {/* Vista móvil: tarjetas */}
+      <div className="mobile-cards mt-3">
+        {loading && <div className="text-center text-muted py-3">Cargando…</div>}
+        {!loading && rows.length === 0 && (
+          <div className="text-center text-muted py-3">Sin resultados.</div>
+        )}
+        {!loading && rows.map((r) => (
+          <div key={r.id} className="card mb-2">
+            <div className="card-body py-3">
+              <div className="d-flex justify-content-between align-items-start">
+                <strong className="me-2">{r.producto_nombre || `#${r.producto_id}`}</strong>
+                <span className="badge bg-light text-dark">x{r.cantidad}</span>
+              </div>
+              <div className="small text-muted mt-1">{fmtDateTime(r.fecha)}</div>
+              <div className="small mt-1">Retirado por: {r.usuario_nombre || `#${r.usuario_id || "-"}`}</div>
+              {r.observaciones && <div className="small mt-1">Obs: {r.observaciones}</div>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
