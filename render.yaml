@@ -7,22 +7,27 @@ services:
     env: python
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
-    preDeployCommand: flask db upgrade
+    startCommand: flask --app src.app db upgrade && gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
     plan: free
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
-      # ------- AJUSTA ESTAS VARIABLES -------
+      - key: ENV
+        value: production
       - key: JWT_SECRET_KEY
         value: change-me-in-prod
       - key: DATABASE_URL
-        # Ej: postgres://user:pass@host:5432/db  (Render te da una URL si creas su Postgres)
+        # Render genera automáticamente esta URL si añades el servicio PostgreSQL
         value: ""
-      # Para tu CORS dinámico en app.py
-      # (pon aquí la URL del frontend cuando lo tengas desplegado, p.ej. https://specialwash-frontend.onrender.com)
       - key: FRONTEND_ORIGIN
-        value: ""
+        value: https://specialwash-frontend.onrender.com
+
+  # =========================
+  # Base de datos PostgreSQL
+  # =========================
+  - type: postgres
+    name: specialwash-db
+    plan: free
 
   # =========================
   # Frontend React (Static Site)
@@ -33,6 +38,5 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:
-      # El front usará esta URL para llamar a la API
       - key: REACT_APP_BACKEND_URL
         value: https://specialwash-backend.onrender.com
