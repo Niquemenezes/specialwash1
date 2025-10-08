@@ -98,3 +98,7 @@ public/*.ttf
 public/bundle.js
 public/bundle.js.LICENSE.txt
 public/*.map
+
+# Ignorar bases locales
+instance/
+*.db
