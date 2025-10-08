@@ -72,6 +72,7 @@
     "@react-google-maps/api": "^2.20.6",
     "bootstrap": "^5.3.3",
     "cors": "^2.8.5",
+    "file-saver": "^2.0.5",
     "font-awesome": "^4.7.0",
     "googleapis": "^146.0.0",
     "html2pdf.js": "^0.10.3",
