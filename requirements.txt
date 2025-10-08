@@ -54,3 +54,4 @@ reportlab==4.2.5
 
 reportlab>=4,<5
 # (opcional) Pillow>=10,<11  # solo si usas imágenes en PDFs
+reportlab==4.2.2
