@@ -1,13 +1,11 @@
 services:
-  # =========================
-  # Backend Flask (Web Service)
-  # =========================
   - type: web
     name: specialwash-backend
     env: python
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    startCommand: flask --app src.app db upgrade && gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
+    # 👇 TEMPORAL: fuerza stamp base + upgrade en el arranque
+    startCommand: flask --app src.app db stamp base && flask --app src.app db upgrade && exec gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
     plan: free
     envVars:
       - key: PYTHON_VERSION
@@ -16,22 +14,18 @@ services:
         value: production
       - key: JWT_SECRET_KEY
         value: change-me-in-prod
+      # 👇 Enlaza automáticamente la URL de Postgres creado en Render
       - key: DATABASE_URL
-        # Render genera automáticamente esta URL si añades el servicio PostgreSQL
-        value: ""
+        fromDatabase:
+          name: specialwash-db
+          property: connectionString
       - key: FRONTEND_ORIGIN
         value: https://specialwash-frontend.onrender.com
 
-  # =========================
-  # Base de datos PostgreSQL
-  # =========================
   - type: postgres
     name: specialwash-db
     plan: free
 
-  # =========================
-  # Frontend React (Static Site)
-  # =========================
   - type: static
     name: specialwash-frontend
     rootDir: .
