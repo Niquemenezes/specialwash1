@@ -4,7 +4,7 @@ services:
     env: python
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    # 👇 TEMPORAL: fuerza stamp base + upgrade en el arranque
+    # ⬇️ TEMPORAL: fuerza "olvidar" la revisión antigua y aplicar las nuevas
     startCommand: flask --app src.app db stamp base && flask --app src.app db upgrade && exec gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
     plan: free
     envVars:
@@ -14,7 +14,6 @@ services:
         value: production
       - key: JWT_SECRET_KEY
         value: change-me-in-prod
-      # 👇 Enlaza automáticamente la URL de Postgres creado en Render
       - key: DATABASE_URL
         fromDatabase:
           name: specialwash-db
@@ -25,12 +24,3 @@ services:
   - type: postgres
     name: specialwash-db
     plan: free
-
-  - type: static
-    name: specialwash-frontend
-    rootDir: .
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: REACT_APP_BACKEND_URL
-        value: https://specialwash-backend.onrender.com
