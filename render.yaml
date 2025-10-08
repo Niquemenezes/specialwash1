@@ -1,11 +1,15 @@
 services:
+  # =========================
+  # Backend Flask (Web Service)
+  # =========================
   - type: web
     name: specialwash-backend
     env: python
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    # ⬇️ TEMPORAL: fuerza "olvidar" la revisión antigua y aplicar las nuevas
-    startCommand: flask --app src.app db stamp base && flask --app src.app db upgrade && exec gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
+    # Ejecuta migraciones ANTES de arrancar, y arranca gunicorn limpio
+    preDeployCommand: flask --app src.app db upgrade
+    startCommand: gunicorn -w 2 -k gthread --threads 8 --timeout 120 -b 0.0.0.0:$PORT src.app:app
     plan: free
     envVars:
       - key: PYTHON_VERSION
@@ -18,9 +22,26 @@ services:
         fromDatabase:
           name: specialwash-db
           property: connectionString
+      # Para CORS en tu Flask (app.py)
       - key: FRONTEND_ORIGIN
         value: https://specialwash-frontend.onrender.com
 
+  # =========================
+  # Base de datos PostgreSQL
+  # =========================
   - type: postgres
     name: specialwash-db
     plan: free
+
+  # =========================
+  # Frontend React (Static Site)
+  # =========================
+  - type: static
+    name: specialwash-frontend
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # El front usará esta URL para llamar a la API
+      - key: REACT_APP_BACKEND_URL
+        value: https://specialwash-backend.onrender.com
